@@ -85,7 +85,7 @@ test('virtual passkey registration, rename, sign-in with MFA, removal and cancel
  await page.getByRole('button',{name:'Sign out'}).click();
  await expect(page.getByRole('heading',{name:'Welcome back'})).toBeVisible();
  await page.exposeFunction('expirePasskeyChallenge',()=>context.clearCookies({name:'verdant-passkey'}));
- await page.exposeFunction('openOtherAccount',()=>signedIn(context,'customer'));
+ await page.exposeFunction('openOtherAccount',()=>signedIn(context,'applicant'));
  await page.evaluate(()=>{
   const get=navigator.credentials.get.bind(navigator.credentials);
   navigator.credentials.get=async options=>{
