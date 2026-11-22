@@ -2,9 +2,9 @@
 
 import {revalidatePath} from 'next/cache';
 import {z} from 'zod';
-import {authorization,rows} from './data';
-import {bangkokToday,thb,validateSubmission} from './model';
-import {definitions,type Lookups} from './forms';
+import {authorization} from './data';
+import {bangkokToday,day,money,validateSubmission} from './model';
+import {definitions,type Form,type Lookups} from './forms';
 import {financeLookups} from './lookups';
 import {quickTypes,type QuickType} from './quick-types';
 
@@ -12,27 +12,42 @@ const quickLookups:Record<QuickType,(keyof Lookups)[]>={
  income:['accounts','sales'],expense:['accounts','expenses','orders'],investment:['accounts','assets'],payout:['accounts'],
 };
 
-export async function loadQuickEntry(type:QuickType,thai:boolean) {
+export async function loadQuickEntry(type:QuickType,thai:boolean):Promise<{form?:Form;error?:string;href?:string}> {
  const context=await authorization();
  if(!context||!Object.hasOwn(quickTypes,type)) return {error:thai?'กรุณาเข้าสู่ระบบผู้ดูแล':'Administrator sign-in is required.'};
  const l=(en:string,th:string)=>thai?th:en;
  try {
-  const [lists,allocations]=await Promise.all([
-   financeLookups(context.db,quickLookups[type]),
-   type==='payout'?rows(context.db,'finance_payout_summary',{sort:'month',size:1000}):null,
-  ]);
-  const {sectionForms,rowForms}=definitions(l,lists,bangkokToday());
+  if(type==='payout') return {href:'/finance?section=team'};
+  const lists=await financeLookups(context.db,quickLookups[type]);
+  const {sectionForms}=definitions(l,lists,bangkokToday());
   if(type==='income') return {form:sectionForms.income?.[0]};
   if(type==='expense') return {form:sectionForms.expenses?.[0]};
-  if(type==='investment') return {form:sectionForms.investments?.[0]};
-  const eligible=allocations?.data.filter(row=>row.member_id&&Number(row.remaining_satang)>0)??[];
-  const base=eligible.length?rowForms.allocations(eligible[0])[0]:null;
-  if(!base) return {message:l('There are no unpaid team allocations.','ไม่มีส่วนแบ่งทีมค้างจ่าย')};
-  return {form:{...base,fields:[{key:'target',label:l('Team allocation','รายการส่วนแบ่ง'),type:'select' as const,
-   list:eligible.map(row=>({value:String(row.id),label:row.name_snapshot+' · '+row.month+' · '+thb(row.remaining_satang,thai?'th':'en')}))},...base.fields]}};
+  return {form:sectionForms.investments?.[0]};
  } catch {
   return {error:l('Could not load the record form. Try again.','โหลดแบบฟอร์มไม่ได้ กรุณาลองใหม่')};
  }
+}
+
+const monthPayout=z.object({
+ key:z.uuid(),month:day,recipient:z.union([z.literal('owner'),z.uuid()]),date:day,
+ amount:money.refine(value=>Number(value)>0),account:z.union([z.literal(''),z.uuid()]),notes:z.string().trim().max(1000),
+});
+export async function recordMonthPayout(input:unknown) {
+ const context=await authorization();
+ if(!context)return {error:'authorization'};
+ const parsed=monthPayout.safeParse(input);
+ if(!parsed.success)return {error:'invalid'};
+ const {key,month,recipient,date,amount,account,notes}=parsed.data;
+ const {error}=await context.db.rpc('finance_record_month_payout' as never,{
+  p_key:key,p_month:month,p_recipient:recipient,p_day:date,p_amount:amount,p_account:account||null,p_notes:notes||null,
+ } as never);
+ if(error){
+  if(error.code==='P0001'&&error.message.startsWith('payout:'))return {error:error.message.slice(7)};
+  console.error('Monthly payout failed',{code:error.code});
+  return {error:'retry'};
+ }
+ revalidatePath('/finance');
+ return {saved:true};
 }
 
 export async function submitFinance(action: string, requestKey: string, values: unknown) {

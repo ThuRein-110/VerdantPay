@@ -49,7 +49,7 @@ export const tables: Record<string,Table> = {
 };
 export const sectionTables: Partial<Record<Section,string[]>>={
  orders:['orders','profitability'],income:['income'],expenses:['expenses','recurring'],inventory:['stock','movements','consumption'],
- calculator:['jobs'],team:['allocations','payouts','agreements'],investments:['assets','capital'],cash:['cash'],
+ calculator:['jobs'],investments:['assets','capital'],cash:['cash'],
  settings:['accounts','categories','members','agreements','audit'],
 };
 export const moduleCopy: Partial<Record<Section,Pair>> = {
@@ -59,7 +59,6 @@ export const moduleCopy: Partial<Record<Section,Pair>> = {
  inventory:['Track exact usage and cost for each spool.','ติดตามปริมาณใช้และต้นทุนของเส้นพิมพ์แต่ละม้วน'],
  calculator:['Estimate a quote or post actual production figures.','ประเมินราคาเสนอหรือบันทึกต้นทุนการผลิตจริง'],
  profit:['Review recognized revenue and business costs for the selected period.','ดูรายได้ที่รับรู้และต้นทุนธุรกิจตามช่วงเวลา'],
- team:['Close a month to accrue shares, then record payments made to each member.','ปิดเดือนเพื่อคำนวณส่วนแบ่ง แล้วบันทึกการจ่ายให้สมาชิก'],
  investments:['Track business funding, withdrawals and equipment book value.','ติดตามเงินทุน การถอนเงิน และมูลค่าตามบัญชีของอุปกรณ์'],
  cash:['Review account balances and record transfers between them.','ดูยอดบัญชีและบันทึกการโอนระหว่างบัญชี'],
  reports:['Download records for the selected period or print a summary.','ดาวน์โหลดข้อมูลตามช่วงเวลาหรือพิมพ์รายงานสรุป'],

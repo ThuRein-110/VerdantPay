@@ -70,37 +70,3 @@ export async function financeAnalytics(db:Database,{from,to}:Filters):Promise<An
  const weekly=[...week].map(([day,{revenue,costs}])=>({day,revenue:Number(revenue),expenses:Number(costs),profit:Number(revenue-costs)}));
  return {daily,weekly,spending:[...spending].map(([category,amount])=>({category,amount:Number(amount)})).sort((a,b)=>b.amount-a.amount)};
 }
-
-export type TeamSummary={id:string;name:string;points?:number;share:string;paid:string;unpaid:string;owner:boolean};
-export async function financeTeam(db:Database,dates:Filters):Promise<TeamSummary[]> {
- const monthDates={...dates,from:dates.from.slice(0,7)+'-01'};
- const [agreement,first]=await Promise.all([
-  db.from('finance_agreements' as never).select('id').lte('effective_on',dates.to).order('effective_on',{ascending:false}).limit(1).maybeSingle(),
-  rows(db,'finance_payout_summary',{date:'month',dates:monthDates,size:500}),
- ]);
- if(agreement.error)throw Error(agreement.error.message);
- const teams=new Map<string,{name:string;points?:number;share:bigint;paid:bigint;unpaid:bigint;owner:boolean}>();
- const agreementId=(agreement.data as {id?:string}|null)?.id;
- let totalPoints=0;
- if(agreementId) {
-  const {data,error}=await db.from('finance_agreement_members' as never).select('member_id,name_snapshot,basis_points').eq('agreement_id',agreementId);
-  if(error)throw Error(error.message);
-  for(const rate of (data??[]) as {member_id:string;name_snapshot:string;basis_points:number}[]) {
-   totalPoints+=rate.basis_points;
-   teams.set(rate.member_id,{name:rate.name_snapshot,points:rate.basis_points,share:0n,paid:0n,unpaid:0n,owner:false});
-  }
- }
- teams.set('owner',{name:'Owner',points:agreementId?10000-totalPoints:undefined,share:0n,paid:0n,unpaid:0n,owner:true});
- for(let page=1;page<=Math.ceil(first.count/500);page++) {
-  const data=page===1?first.data:(await rows(db,'finance_payout_summary',{date:'month',dates:monthDates,size:500,page})).data;
-  for(const row of data) {
-   const id=String(row.member_id??'owner');
-   const team=teams.get(id)??{name:String(row.name_snapshot),share:0n,paid:0n,unpaid:0n,owner:false};
-   team.share+=integers(row.amount_satang)+integers(row.adjustment_satang);
-   team.paid+=integers(row.paid_satang);
-   team.unpaid+=integers(row.remaining_satang);
-   teams.set(id,team);
-  }
- }
- return [...teams].map(([id,member])=>({...member,id,share:String(member.share),paid:String(member.paid),unpaid:String(member.unpaid)}));
-}

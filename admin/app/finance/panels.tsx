@@ -1,10 +1,9 @@
 import Link from 'next/link';
-import {ArrowDownLeft,ArrowLeftRight,ArrowRight,ArrowUpRight,Boxes,ChevronDown,ChevronRight,CircleDollarSign,Coins,Landmark,ReceiptText,UsersRound,Wallet} from 'lucide-react';
+import {ArrowDownLeft,ArrowLeftRight,ArrowRight,ArrowUpRight,Boxes,ChevronDown,ChevronRight,Coins,Landmark,ReceiptText,UsersRound,Wallet} from 'lucide-react';
 import {QuickButton} from './chrome';
 import {code} from './forms';
 import {thb,type Filters,type L} from './model';
 import type {Row,Stats} from './data';
-import type {TeamSummary} from './analytics';
 
 export function financeUrl(section:string,dates:Filters,extra:Record<string,string>={}) {
  return '/finance?'+new URLSearchParams({section,range:dates.range,from:dates.from,to:dates.to,...extra});
@@ -25,7 +24,7 @@ export function DashboardActions({dates,l}:{dates:Filters;l:L}) {
   <QuickButton type="income" className="finance-quick-tile"><span><ArrowDownLeft size={23}/></span>{l('Add income','เพิ่มรายรับ')}</QuickButton>
   <QuickButton type="expense" className="finance-quick-tile"><span><ArrowUpRight size={23}/></span>{l('Add expense','เพิ่มค่าใช้จ่าย')}</QuickButton>
   <Link className="finance-quick-tile" href={financeUrl('records',dates)}><span><ReceiptText size={23}/></span>{l('Records','รายการ')}</Link>
-  <Link className="finance-quick-tile" href={financeUrl('team',dates)}><span><UsersRound size={23}/></span>{l('Team shares','ส่วนแบ่งทีม')}</Link>
+  <Link className="finance-quick-tile" href={financeUrl('team',dates)}><span><UsersRound size={23}/></span>{l('Team Payouts','จ่ายส่วนแบ่งทีม')}</Link>
  </div>;
 }
 const categoryIcons:Record<string,typeof Wallet>={receipt:ArrowDownLeft,refund:ArrowUpRight,expense:ReceiptText,filament_purchase:Boxes,equipment:Landmark,
@@ -80,18 +79,5 @@ export function RecentTransactions({records,l,thai,dates,full=false,query='',kin
    <span>{(page-1)*25+1}–{Math.min(page*25,count)} / {count}</span>
    {page*25<count&&<Link href={financeUrl('records',dates,{q:query,kind,sort,page:String(page+1)})}>{l('Next','ถัดไป')}</Link>}
   </div>}
- </section>;
-}
-export function TeamCards({members,thai,l,dates}:{members:TeamSummary[];thai:boolean;l:L;dates:Filters}) {
- const locale=thai?'th':'en';
- return <section className="finance-team-summary"><header className="finance-section-head"><div><h2>{l('Profit allocation','การจัดสรรกำไร')}</h2>
-  <p>{l('Accrued amounts for the selected period. Rates shown as of its end.','ยอดจัดสรรในช่วงที่เลือก อัตราส่วนแบ่ง ณ วันสิ้นช่วง')}</p></div>
-  <Link className="finance-button" href={financeUrl('settings',dates)+'#agreements'}>{l('Share settings','ตั้งค่าส่วนแบ่ง')} <ChevronRight size={15}/></Link></header>
-  <div className="finance-team-cards">{members.map(member=><article className="finance-panel finance-team-card" key={member.id}>
-   <div><span className="finance-person-icon">{member.owner?<CircleDollarSign size={20}/>:<UsersRound size={20}/>}</span>
-    <div><h3>{member.owner?l('Owner','เจ้าของ'):member.name}</h3>{member.points!==undefined&&<p>{new Intl.NumberFormat(locale,{style:'percent',maximumFractionDigits:2}).format(member.points/10000)}</p>}</div></div>
-   <strong>{thb(member.share,locale)}</strong>
-   {!member.owner&&<dl><div><dt>{l('Paid','จ่ายแล้ว')}</dt><dd>{thb(member.paid,locale)}</dd></div><div><dt>{l('Unpaid','ค้างจ่าย')}</dt><dd>{thb(member.unpaid,locale)}</dd></div></dl>}
-  </article>)}</div>
  </section>;
 }

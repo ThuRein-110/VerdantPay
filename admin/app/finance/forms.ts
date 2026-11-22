@@ -95,7 +95,6 @@ export function definitions(l:L, lists:Lookups, today:string) {
     {cost:'actual',repeat:{key:'materials',maximum:30,fields:[select('spool',l('Spool','ม้วนเส้นพิมพ์'),lists.spools),
      select('kind',l('Consumption type','ประเภทการใช้'),choice(consumptionKinds)),number('grams',l('Actual grams','กรัมจริง'),'','0.001','0.001')]}})],
   allocations:row=>row.member_id ? [
-   ...(Number(row.remaining_satang)>0?[record('payout',l('Record team payment','บันทึกจ่ายส่วนแบ่ง'),[date(),account,amount,notes])]:[]),
    record('allocation_adjust',l('Adjust team allocation','ปรับส่วนแบ่งทีม'),[{...amount,label:l('Signed change (THB)','การเปลี่ยนแปลง (+/− บาท)'),min:'-999999999'},reason])]:[],
  };
  return {sectionForms,rowForms,editable:{orders:order,recurring,categories:category,members:member}};

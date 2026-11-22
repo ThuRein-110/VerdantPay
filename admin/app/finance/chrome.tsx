@@ -77,7 +77,8 @@ function AddSheet({dialogRef,thai,mode,change,status,onClose,onSaved}:{dialogRef
    </div>
    {!status?<div className="finance-form-skeleton" role="status"><span className="sr-only">{l('Loading form','กำลังโหลดแบบฟอร์ม')}</span><i/><i/><i/></div>:null}
    {status?.error&&<p role="alert" className="finance-error">{status.error} <button type="button" className="finance-button" onClick={()=>change(mode)}>{l('Retry','ลองใหม่')}</button></p>}
-   {status?.message&&<p className="finance-empty">{status.message}</p>}
+   {status?.href&&<Link className="finance-button primary" href={status.href} onClick={()=>dialogRef.current?.close()}>
+    {l('Open Team Payouts','เปิดหน้าจ่ายส่วนแบ่งทีม')}</Link>}
    {status?.form&&<Entry key={mode} form={status.form} thai={thai} summary={false} quick onSaved={onSaved}/>}
   </div>
  </dialog>;

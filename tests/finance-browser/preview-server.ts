@@ -150,6 +150,11 @@ async function start() {
     if(path==='/rest/v1/rpc/finance_email_test')return respond(res,(await db.query<{value:boolean}>('select public.finance_email_test() value')).rows[0].value);
     if(path==='/rest/v1/rpc/finance_overview')return respond(res,(await db.query<{value:unknown}>(
      'select public.finance_overview($1,$2) value',[body.p_from,body.p_to])).rows[0].value);
+    if(path==='/rest/v1/rpc/finance_month_payout_page')return respond(res,(await db.query<{value:unknown}>(
+     'select public.finance_month_payout_page($1,$2) value',[body.p_month,body.p_offset])).rows[0].value);
+    if(path==='/rest/v1/rpc/finance_record_month_payout')return respond(res,(await db.query<{value:string}>(
+     'select public.finance_record_month_payout($1,$2,$3,$4,$5,$6,$7) value',
+     [body.p_key,body.p_month,body.p_recipient,body.p_day,body.p_amount,body.p_account,body.p_notes])).rows[0].value);
     if(path==='/rest/v1/rpc/finance_write')return respond(res,(await db.query<{value:string}>(
      'select public.finance_write($1,$2,$3::jsonb) value',[body.p_action,body.p_key,JSON.stringify(body.p_data)])).rows[0].value);
     if(path==='/rest/v1/rpc/finance_record_income')return respond(res,(await db.query<{value:string}>(
