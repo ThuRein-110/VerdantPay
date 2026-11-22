@@ -1,0 +1,15 @@
+# Architecture
+
+Both applications use Next.js 16.4.5 App Router and React 19.3.1. TypeScript 5.9 provides strict checking. Exact versions are in pnpm-lock.yaml. Tailwind 4 is integrated through PostCSS; shared theme tokens supply light/dark/system styles. Typed English/Thai/Myanmar/Simplified Chinese catalogs and cookie-backed locale metadata are shared by both apps. The grey cat is original SVG artwork, independent of filament colors and website theme.
+
+The server authenticates cookies with Supabase `getUser`, then applies user ownership or the database `is_admin()` check. Admin authorization requires a server-managed role and AAL2. Every sensitive API invocation performs authorization; protection does not depend on navigation visibility. Supabase RLS supplies independent read restrictions. Browser database writes are revoked. Checked server handlers use the server-only service credential for uploads and constrained mutations. Transactional RPCs implement final quote issuance, transitions, inventory changes, promotion allocation and queue claiming.
+
+Shared packages use TypeScript source exports and explicit workspace dependencies. Both Next builds transpile them, with `outputFileTracingRoot` at the repository root. Do not publish or separately install these internal packages. Turborepo orders the dependency graph. Configure Vercel to include sibling sources; see deployment guide.
+
+Private objects live in one non-public bucket. Uploads have SHA-256, ownership and immutable metadata. Models are parsed as data; no external materials, scripts or archive extraction. Preview rendering is lazy-loaded. A custom bounded parser handles STL, triangulated OBJ and a deliberately restricted embedded GLB subset.
+
+The durable reconstruction queue is PostgreSQL-backed. A separate Node worker takes short leases with `SKIP LOCKED` and an advisory lock; admin-configured concurrency is 1–4. Per-customer daily limits and global monthly THB allowance reservations are serialized in SQL. The worker requests untextured GLB, polls real progress/credit usage and never repeats an uncertain paid POST. Currency conversion is operator-reviewed; provider credits are not misrepresented as verified THB billing.
+
+Quotes store immutable configuration, rate snapshot and illustrative estimate. Final amounts are a separate reviewed field; accepted quotes cannot be changed. Sensitive financial JSON columns and pricing tables cannot be directly selected by customer roles; checked APIs project safe totals/ranges. Orders expose only customer-visible events; production notes live in an admin-only table. Notifications are an in-app inbox, not an external mail delivery claim.
+
+Official API references: [Next.js installation](https://nextjs.org/docs/app/getting-started/installation), [Supabase SSR](https://supabase.com/docs/guides/auth/server-side/creating-a-client?framework=nextjs), [Meshy image-to-3D](https://docs.meshy.ai/en/api/image-to-3d). Versions were selected for this implementation and must be maintained with audit checks.

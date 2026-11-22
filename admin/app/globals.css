@@ -1,0 +1,10 @@
+@import "tailwindcss";
+@import "../../packages/ui/src/styles.css";
+@import "../../packages/ui/src/brochure.css";
+@source "../../packages/ui/src";
+
+/* The admin CSP allows local fonts. Use the bundled Thai font and platform sans-serif. */
+html:root {
+ --memo-body: "Memo Thai", "Segoe UI", "Noto Sans Myanmar", "Noto Sans SC", system-ui, sans-serif;
+ --memo-display: var(--memo-body);
+}

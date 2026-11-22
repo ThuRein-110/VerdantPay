@@ -1,0 +1,5 @@
+@import "tailwindcss";
+@import "../../packages/ui/src/styles.css";
+@import "../../packages/ui/src/brochure-fonts.css";
+@import "../../packages/ui/src/brochure.css";
+@source "../../packages/ui/src";

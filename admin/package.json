@@ -1,0 +1,30 @@
+{
+  "name": "@mfu/admin",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "next dev --port 3001",
+    "build": "next build",
+    "start": "next start --port 3001",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@mfu/database": "workspace:*",
+    "@mfu/pricing": "workspace:*",
+    "@mfu/three": "workspace:*",
+    "@mfu/types": "workspace:*",
+    "@mfu/ui": "workspace:*",
+    "@mfu/validation": "workspace:*",
+    "@tailwindcss/postcss": "^4.1.18",
+    "chart.js": "^4.6.1",
+    "csv-stringify": "^6.9.0",
+    "decimal.js": "^10.6.0",
+    "exceljs": "^4.4.0",
+    "lucide-react": "^1.77.0",
+    "next": "16.4.5",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "tailwindcss": "^4.1.18",
+    "zod": "^4.3.0"
+  }
+}
