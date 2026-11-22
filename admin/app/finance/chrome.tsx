@@ -28,7 +28,9 @@ const server=()=>false;
 
 export function ThemeButton({thai}:{thai:boolean}) {
  const {setTheme}=useLanguage();
+ const ready=useSyncExternalStore(subscribe,hydrated,server);
  return <button type="button" className="finance-icon-button finance-theme" aria-label={thai?'สลับธีมสว่างและมืด':'Toggle light and dark theme'}
+  disabled={!ready}
   onClick={()=>setTheme(document.documentElement.dataset.theme==='dark'?'light':'dark')}>
   <Sun className="finance-sun" size={20}/><Moon className="finance-moon" size={20}/>
  </button>;
@@ -144,5 +146,5 @@ export function FinanceChrome({children,section,dates,thai,title,period}:{childr
 }
 
 export function BrandMark() {
- return <span className="finance-mark"><Image src={memoLogo} alt="" width={104} height={104}/></span>;
+ return <span className="finance-mark"><Image src={memoLogo} alt="" width={104} height={104} unoptimized/></span>;
 }

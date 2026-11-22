@@ -13,6 +13,23 @@ it('validates signup data and enforces password confirmation and byte limits',()
  expect(authInput.safeParse({...form,password:overlong,confirmation:overlong}).success).toBe(false);
 });
 
+it('installs only finance prerequisites and protects every base table on a blank Supabase schema',async()=>{
+ const db=await financeDatabase();
+ try{
+  const {rows}=await db.query<{name:string;rls:boolean;guest:boolean}>(
+   "select c.relname name,c.relrowsecurity rls,has_table_privilege('anon',c.oid,'SELECT, INSERT, UPDATE, DELETE') guest from pg_class c join pg_namespace s on s.oid=c.relnamespace where s.nspname='public' and c.relkind='r'");
+  expect(rows.length).toBeGreaterThan(20);
+  expect(rows.every(table=>table.rls&&!table.guest)).toBe(true);
+  expect(rows.filter(table=>!table.name.startsWith('finance_')).map(table=>table.name).sort()).toEqual(['profiles','rate_limits','roles']);
+  await db.exec('set role anon');
+  await expect(db.query("select public.finance_record_income(gen_random_uuid(),'{}'::jsonb)")).rejects.toThrow('permission denied');
+  await expect(db.query("select public.take_rate_limit('any',1,60)")).rejects.toThrow('permission denied');
+  await db.exec('reset role;set role service_role');
+  expect((await db.query<{allowed:boolean}>("select public.take_rate_limit('finance:test',1,60) allowed")).rows[0].allowed).toBe(true);
+  expect((await db.query<{allowed:boolean}>("select public.take_rate_limit('finance:test',1,60) allowed")).rows[0].allowed).toBe(false);
+ } finally {await db.close();}
+},20000);
+
 it('enforces owner-only approval, MFA, linked allocations, and immediate revocation in PostgreSQL',async()=>{
  const db=await financeDatabase();
  try {

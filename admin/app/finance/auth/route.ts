@@ -1,7 +1,7 @@
-import {session} from '@mfu/database';
+import {session,serviceClient} from '@mfu/database';
+import {createHmac} from 'node:crypto';
 import {csrf} from '@mfu/database/csrf.ts';
 import {readLimited} from '@mfu/database/limits.ts';
-import {customerRate} from '@mfu/database/customer-security.ts';
 import {financeAccess,financeDestination,isApproved} from '../membership';
 import {authInput} from './input';
 import {canRecover,clearRecovery,financeCallback,rememberFinanceFlow} from './flow';
@@ -12,6 +12,13 @@ function reply(data:Record<string,unknown>,status=200) {
 const fail=(error:string,status=400)=>reply({error},status);
 const go=(destination:string)=>reply({destination});
 
+async function rateAllowed(key:string,limit:number,seconds:number) {
+ const digest=createHmac('sha256',process.env.SUPABASE_SERVICE_ROLE_KEY!).update(key).digest('hex');
+ const {data,error}=await serviceClient().rpc('take_rate_limit',{p_key:'finance:'+digest,p_limit:limit,p_seconds:seconds});
+ if(error)throw Error('Rate limit unavailable');
+ return data===true;
+}
+
 export async function POST(request:Request) {
  try {csrf(request,true);}catch{return fail('origin',403);}
  let payload:unknown;
@@ -21,12 +28,9 @@ export async function POST(request:Request) {
  const p=input.data;
  try {
   if(p.action!=='logout'){
-   const network=(request.headers.get('x-vercel-forwarded-for')??'unknown').split(',')[0].trim();
-   try {
-    await customerRate(request,'finance-network:'+network,30,900);
-    if('email' in p&&['signup','forgot'].includes(p.action))
-     await customerRate(request,'finance-mail:'+p.email,4,3600);
-   } catch {return fail('rate',429);}
+   const network=(request.headers.get('cf-connecting-ip')??request.headers.get('x-vercel-forwarded-for')??'unknown').split(',')[0].trim();
+   if(!await rateAllowed('network:'+network,30,900))return fail('rate',429);
+   if('email' in p&&['signup','forgot'].includes(p.action)&&!await rateAllowed('mail:'+p.email,4,3600))return fail('rate',429);
   }
   const db=await session();
   if(p.action==='logout'){

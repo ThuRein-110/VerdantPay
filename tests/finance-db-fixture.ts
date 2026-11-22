@@ -17,7 +17,9 @@ export async function financeDatabase() {
  create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;
  create function auth.jwt() returns jsonb language sql stable as $$select coalesce(nullif(current_setting('request.jwt.claims',true),''),'{}')::jsonb$$;
  grant usage on schema public,auth to anon,authenticated,service_role;grant execute on all functions in schema auth to anon,authenticated,service_role;`);
- for(const file of readdirSync('supabase/migrations').sort()){
+ const baseline=readFileSync('supabase/finance-bootstrap/202611220018_finance_prerequisites.sql','utf8');
+ await db.exec(baseline);
+ for(const file of readdirSync('supabase/migrations').filter(name=>/^\d{12,14}_finance(?:_|\.)/.test(name)).sort()){
   if(file.startsWith('202611220026')){
    await db.exec(`insert into auth.users values('${admin}','admin@example.test',now()),('${customer}','customer@example.test',now()),
    ('${applicant}','applicant@example.test',null);insert into public.roles values('${admin}','admin');
