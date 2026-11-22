@@ -9,19 +9,32 @@ VerdantPay uses Cloudflare's vinext adapter. Use Node.js 22.18 or later for this
 ```sh
 pnpm install --frozen-lockfile
 pnpm --filter @mfu/admin build:vinext
-pnpm --filter @mfu/admin deploy:vinext --dry-run
+pnpm --filter @mfu/admin deploy:workers --dry-run
 ```
+
+For the existing **verdantpay** Worker, set **Settings → Builds** as follows:
+
+| Setting | Value |
+| --- | --- |
+| Repository | `ThuRein-110/VerdantPay` |
+| Production branch during recovery | `recovery/standalone-verdantpay` |
+| Root directory | `admin` |
+| Build command | `pnpm -w install --frozen-lockfile && pnpm run build:vinext` |
+| Deploy command | `pnpm run deploy:workers --tag "$WORKERS_CI_COMMIT_SHA"` |
+| Preview command, if enabled | `pnpm run preview:workers` |
+
+The workspace install uses the root lockfile and links the packages that Finance imports. vinext writes `admin/.cloudflare/output/v1/`. The prebuilt deploy command uploads that output without rediscovering the framework from the workspace root. The tag lets you match the deployed Worker version to the Git commit in Workers Builds. Retry the build after saving the trigger settings.
 
 Authenticate with the official Cloudflare CLI and confirm the authorized account and Free subscription before publishing. Declare the five runtime values in the Worker's secret bindings. Keep `SUPABASE_SERVICE_ROLE_KEY` server-side. Use the assigned `workers.dev` origin for both app origins and allowlist that exact `/finance/auth/callback` URL in Verdant. Configure email confirmation separately with a permitted recipient and SMTP setup.
 
 ```sh
 pnpm --filter @mfu/admin exec cf auth login
-pnpm --filter @mfu/admin deploy:vinext
+pnpm --filter @mfu/admin deploy:workers
 ```
 
 Verify the deployed root, Auth flows, pending-user access, owner approval, and report exports. Workers Free limits each HTTP invocation to 10 ms of CPU. Check actual invocation CPU and errors, including XLSX export with a representative report. Local duration includes database wait and cannot establish the production CPU budget.
 
-[Cloudflare Next.js guide](https://developers.cloudflare.com/workers/framework-guides/web-apps/nextjs/) · [Workers limits](https://developers.cloudflare.com/workers/platform/limits/)
+[Cloudflare Next.js guide](https://developers.cloudflare.com/workers/framework-guides/web-apps/nextjs/) · [Workers Builds settings](https://developers.cloudflare.com/workers/ci-cd/builds/configuration/) · [Workers limits](https://developers.cloudflare.com/workers/platform/limits/)
 
 ## Vercel project recovery
 

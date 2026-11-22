@@ -10,7 +10,9 @@
     "dev:vinext": "vite dev --port 3001",
     "build:vinext": "vite build",
     "start:vinext": "vite preview",
-    "deploy:vinext": "vinext-cloudflare deploy"
+    "deploy:vinext": "vinext-cloudflare deploy",
+    "deploy:workers": "cf deploy --prebuilt --mode production --no-provision",
+    "preview:workers": "cf previews deploy --mode production"
   },
   "dependencies": {
     "@mfu/database": "workspace:*",
