@@ -54,6 +54,14 @@ Verify the deployed root, Auth flows, pending-user access, owner approval, and r
 
 [Supabase redirect URLs](https://supabase.com/docs/guides/auth/redirect-urls) · [Using custom SMTP](https://supabase.com/docs/guides/auth/auth-smtp)
 
+### Passkeys
+
+Verdant uses Supabase Auth's experimental passkey support. Set the relying-party display name to `VerdantPay`, the ID to `verdantpay.6731501110.workers.dev`, and the allowed origin to `https://verdantpay.6731501110.workers.dev`. Keep the ID stable after enrollment. Browsers and authenticators handle biometric verification locally.
+
+To enroll, sign in and complete authenticator verification, then open **Settings → Security → Manage passkeys → Register a passkey** within five minutes. Password recovery remains available. A passkey session still has to meet the application's AAL2 requirement through the existing authenticator flow.
+
+[Supabase passkeys](https://supabase.com/docs/guides/auth/passkeys)
+
 ```powershell
 $stage = node scripts/stage-finance-migrations.mjs
 supabase link --project-ref bslnyxuycfpyxthomnnk --workdir $stage

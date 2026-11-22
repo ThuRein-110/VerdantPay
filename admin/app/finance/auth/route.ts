@@ -1,23 +1,16 @@
-import {session,serviceClient} from '@mfu/database';
-import {createHmac} from 'node:crypto';
+import {session} from '@mfu/database';
 import {csrf} from '@mfu/database/csrf.ts';
 import {readLimited} from '@mfu/database/limits.ts';
 import {financeAccess,financeDestination,isApproved} from '../membership';
 import {authInput} from './input';
 import {canRecover,clearRecovery,financeCallback,rememberFinanceFlow} from './flow';
+import {financeNetwork,rateAllowed} from './rate';
 
 function reply(data:Record<string,unknown>,status=200) {
  return Response.json(data,{status,headers:{'Cache-Control':'private, no-store'}});
 }
 const fail=(error:string,status=400)=>reply({error},status);
 const go=(destination:string)=>reply({destination});
-
-async function rateAllowed(key:string,limit:number,seconds:number) {
- const digest=createHmac('sha256',process.env.SUPABASE_SERVICE_ROLE_KEY!).update(key).digest('hex');
- const {data,error}=await serviceClient().rpc('take_rate_limit',{p_key:'finance:'+digest,p_limit:limit,p_seconds:seconds});
- if(error)throw Error('Rate limit unavailable');
- return data===true;
-}
 
 export async function POST(request:Request) {
  try {csrf(request,true);}catch{return fail('origin',403);}
@@ -28,7 +21,7 @@ export async function POST(request:Request) {
  const p=input.data;
  try {
   if(p.action!=='logout'){
-   const network=(request.headers.get('cf-connecting-ip')??request.headers.get('x-vercel-forwarded-for')??'unknown').split(',')[0].trim();
+   const network=financeNetwork(request.headers);
    if(!await rateAllowed('network:'+network,30,900))return fail('rate',429);
    if('email' in p&&['signup','forgot'].includes(p.action)&&!await rateAllowed('mail:'+p.email,4,3600))return fail('rate',429);
   }

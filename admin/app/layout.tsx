@@ -2,7 +2,7 @@ import './globals.css';
 import {Preferences} from '@mfu/ui/settings.tsx';
 import {translate} from '@mfu/ui/i18n.ts';
 import {BOOTSTRAP} from '@mfu/ui/settings-script.ts';
-import {preferences} from '@mfu/ui/server-locale.ts';
+import {financePreferences} from './finance/preferences';
 import type {Metadata} from 'next';
 
 export const metadata:Metadata={
@@ -12,7 +12,7 @@ export const metadata:Metadata={
 };
 
 export default async function Layout({children}:{children:React.ReactNode}){
- const settings=await preferences();
+ const settings=await financePreferences();
  return <html lang={settings.locale} data-theme={settings.theme} suppressHydrationWarning>
   <head><script dangerouslySetInnerHTML={{__html:BOOTSTRAP}}/></head>
   <body><Preferences {...settings}>

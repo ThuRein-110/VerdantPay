@@ -1,4 +1,5 @@
-import {preferences} from '@mfu/ui/server-locale.ts';
+import {financePreferences} from '../preferences';
+import {FinanceSecurity} from '../passkeys';
 import {notFound,redirect} from 'next/navigation';
 import Link from 'next/link';
 import {FinanceAuthFrame,FinanceLogin,FinanceSignOut,type AuthScreen} from '../login/screen';
@@ -13,7 +14,7 @@ type TeamData={allocations:{id:string;month:string;amount_satang:number;adjustme
 const screens=['signup','forgot-password','reset-password','verify','pending','team-access'];
 
 export default async function FinanceAccountPage({params,searchParams}:{params:Promise<{authScreen:string}>;searchParams:Promise<{result?:string}>}) {
- const [{authScreen},query,{locale}]=await Promise.all([params,searchParams,preferences()]);
+ const [{authScreen},query,{locale}]=await Promise.all([params,searchParams,financePreferences()]);
  if(!screens.includes(authScreen))notFound();
  const thai=locale==='th';
  const l=(en:string,th:string)=>thai?th:en;
@@ -46,6 +47,7 @@ export default async function FinanceAccountPage({params,searchParams}:{params:P
      <ul className="finance-email-history">{rows.payments.map(row=><li key={row.id}>
       <time dateTime={row.occurred_on}>{row.occurred_on}</time><strong>{money(row.amount_satang)}</strong></li>)}</ul></>}
     <FinanceSignOut thai={thai}/>
+    <FinanceSecurity thai={thai}/>
    </FinanceAuthFrame>;
   }
  }

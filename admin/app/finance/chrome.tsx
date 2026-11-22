@@ -2,7 +2,6 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import {useRouter} from 'next/navigation';
 import {createContext,Fragment,useContext,useEffect,useRef,useState,useSyncExternalStore,type ReactNode} from 'react';
 import {ArrowDownLeft,ArrowUpRight,Boxes,Calculator,ChartNoAxesCombined,CheckCircle2,ChevronDown,CircleUserRound,Coins,FileChartColumn,House,Landmark,LayoutList,Moon,Plus,Settings,Sun,Target,UsersRound,Wallet,X} from 'lucide-react';
 import {useLanguage} from '@mfu/ui/settings.tsx';
@@ -37,19 +36,26 @@ export function ThemeButton({thai}:{thai:boolean}) {
 }
 
 export function FinancePreferences({thai}:{thai:boolean}) {
- const {theme,setTheme,locale,setLocale}=useLanguage();
- const router=useRouter();
+ const {theme,setTheme}=useLanguage();
  return <section className="finance-panel finance-preferences">
   <h2>{thai?'การแสดงผล':'Appearance'}</h2>
   <div className="finance-fields">
    <label>{thai?'ธีม':'Theme'}<select value={theme} onChange={event=>setTheme(event.target.value as typeof theme)}>
     <option value="system">{thai?'ตามระบบ':'System'}</option><option value="light">{thai?'สว่าง':'Light'}</option><option value="dark">{thai?'มืด':'Dark'}</option>
    </select></label>
-   <label>{thai?'ภาษา':'Language'}<select value={locale==='th'?'th':'en'} onChange={event=>{setLocale(event.target.value as 'en'|'th');router.refresh();}}>
-    <option value="en">English</option><option value="th">ไทย</option>
-   </select></label>
+   <FinanceLanguage thai={thai}/>
   </div>
  </section>;
+}
+
+export function FinanceLanguage({thai}:{thai:boolean}) {
+ const {locale,setLocale}=useLanguage();
+ const label=thai?'ภาษา':'Language';
+ return <label>{label}<select aria-label={label} value={locale==='th'?'th':'en'} onChange={event=>{
+  setLocale(event.target.value==='th'?'th':'en');location.reload();
+ }}>
+  <option value="en">EN · English</option><option value="th">TH · ไทย</option>
+ </select></label>;
 }
 
 export function QuickButton({type,children,className='finance-button'}:{type?:QuickType;children:ReactNode;className?:string}) {

@@ -3,9 +3,9 @@ import type {Metadata} from 'next';
 import {isLocale,translate,type TranslationKey} from './i18n';
 import type {Locale} from './i18n';
 import type {Theme} from './settings';
-export async function preferences(defaultTheme:Theme='system'):Promise<{locale:Locale;theme:Theme}>{
+export async function preferences(defaultTheme:Theme='system',defaultLocale:Locale='th'):Promise<{locale:Locale;theme:Theme}>{
  const store=await cookies(),language=store.get('memo-locale')?.value,appearance=store.get('memo-theme')?.value;
- return {locale:isLocale(language)?language:'th',theme:appearance==='light'||appearance==='dark'||appearance==='system'?appearance:defaultTheme};
+ return {locale:isLocale(language)?language:defaultLocale,theme:appearance==='light'||appearance==='dark'||appearance==='system'?appearance:defaultTheme};
 }
 export async function localizedMetadata(admin=false):Promise<Metadata>{
  const {locale}=await preferences();

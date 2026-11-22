@@ -49,6 +49,87 @@ test('private admin route denies anonymous, unverified and non-admin sessions',a
  await expect(page.locator('.finance-balance')).toBeVisible();
 });
 
+test('English defaults to sign-in, Thai persists, and unsupported passkeys fall back to passwords',async({page})=>{
+ await page.addInitScript(()=>Object.defineProperty(window,'PublicKeyCredential',{value:undefined}));
+ await page.goto('/');
+ await expect(page.getByRole('heading',{name:'Welcome back'})).toBeVisible();
+ await expect(page.getByText(/browser does not support passkeys/)).toBeVisible();
+ await page.getByLabel('Language',{exact:true}).selectOption('th');
+ await expect(page.getByRole('heading',{name:'ยินดีต้อนรับกลับ'})).toBeVisible();
+ await page.reload();
+ await expect(page.locator('html')).toHaveAttribute('lang','th');
+ await page.getByLabel('ภาษา',{exact:true}).selectOption('en');
+ await expect(page.getByRole('heading',{name:'Welcome back'})).toBeVisible();
+});
+
+test('virtual passkey registration, rename, sign-in with MFA, removal and cancellation',async({page,context})=>{
+ const cdp=await context.newCDPSession(page);
+ await cdp.send('WebAuthn.enable');
+ await cdp.send('WebAuthn.addVirtualAuthenticator',{options:{
+  protocol:'ctap2',transport:'internal',hasResidentKey:true,hasUserVerification:true,
+  isUserVerified:true,automaticPresenceSimulation:true,
+ }});
+ await context.addCookies([{name:'sb-127-auth-token',value:cookie('admin',10),url:frontend,httpOnly:true,sameSite:'Lax'}]);
+ await page.goto('/finance?section=settings');
+ await page.getByRole('button',{name:'Manage passkeys'}).click();
+ await expect(page.getByRole('button',{name:'Register a passkey'})).toBeDisabled();
+ await expect(page.getByText(/sign in again with your password/)).toBeVisible();
+ await signedIn(context);
+ await page.reload();
+ await page.getByRole('button',{name:'Manage passkeys'}).click();
+ await page.getByRole('button',{name:'Register a passkey'}).click();
+ await expect(page.getByText('Passkey registered.')).toBeVisible();
+ await page.getByLabel('Passkey name').fill('Test device');
+ await page.getByRole('button',{name:'Rename',exact:true}).click();
+ await expect(page.getByText('Passkey renamed.')).toBeVisible();
+ await page.getByRole('button',{name:'Sign out'}).click();
+ await expect(page.getByRole('heading',{name:'Welcome back'})).toBeVisible();
+ await page.exposeFunction('expirePasskeyChallenge',()=>context.clearCookies({name:'verdant-passkey'}));
+ await page.exposeFunction('openOtherAccount',()=>signedIn(context,'customer'));
+ await page.evaluate(()=>{
+  const get=navigator.credentials.get.bind(navigator.credentials);
+  navigator.credentials.get=async options=>{
+   const result=await get(options);
+   await (window as unknown as {expirePasskeyChallenge:()=>Promise<void>}).expirePasskeyChallenge();
+   return result;
+  };
+ });
+ await page.getByRole('button',{name:'Sign in with passkey',exact:true}).click();
+ await expect(page.getByRole('alert').filter({hasText:/request expired/})).toBeVisible();
+ await page.reload();
+ await page.evaluate(()=>{
+  const get=navigator.credentials.get.bind(navigator.credentials);
+  navigator.credentials.get=async options=>{
+   const result=await get(options);
+   await (window as unknown as {openOtherAccount:()=>Promise<void>}).openOtherAccount();
+   return result;
+  };
+ });
+ await page.getByRole('button',{name:'Sign in with passkey',exact:true}).click();
+ await expect(page.getByRole('alert').filter({hasText:/Sign out before using a passkey for another account/})).toBeVisible();
+ await context.clearCookies({name:'sb-127-auth-token'});
+ await page.reload();
+ await page.getByRole('button',{name:'Sign in with passkey',exact:true}).click();
+ await expect(page.getByRole('heading',{name:'Verify your sign-in'})).toBeVisible();
+ expect((await page.request.get('/finance/export?report=profit&format=csv')).status()).toBe(401);
+ await page.getByRole('button',{name:'Continue with authenticator'}).click();
+ await page.locator('input[name=code]').fill('123456');
+ await page.getByRole('button',{name:'Verify code'}).click();
+ await expect(page).toHaveURL(/\/finance$/);
+ await page.goto('/finance?section=settings');
+ await page.getByRole('button',{name:'Manage passkeys'}).click();
+ await expect(page.getByText(/Last used/)).toBeVisible();
+ page.once('dialog',dialog=>dialog.accept());
+ await page.getByRole('button',{name:'Remove',exact:true}).click();
+ await expect(page.getByText('Passkey removed.')).toBeVisible();
+ await page.getByRole('button',{name:'Sign out'}).click();
+ await page.getByRole('button',{name:'Sign in with passkey',exact:true}).click();
+ await expect(page.getByRole('alert').filter({hasText:/could not be completed/})).toBeVisible();
+ await page.evaluate(()=>{navigator.credentials.get=async()=>{throw new DOMException('cancelled','NotAllowedError');};});
+ await page.getByRole('button',{name:'Sign in with passkey',exact:true}).click();
+ await expect(page.getByRole('alert').filter({hasText:/cancelled or timed out/})).toBeVisible();
+});
+
 test('signup confirmation, pending approval, scoped member login and password recovery',async({page,browser,request})=>{
  const address='applicant@example.test';
  const password='Fixture-secure-4321';

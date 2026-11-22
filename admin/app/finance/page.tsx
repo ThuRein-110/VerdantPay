@@ -1,4 +1,5 @@
-import {preferences} from '@mfu/ui/server-locale.ts';
+import {financePreferences} from './preferences';
+import {FinanceSecurity} from './passkeys';
 import Link from 'next/link';
 import {ArrowDownLeft, ArrowUpRight, CalendarDays, ChartNoAxesCombined, CircleDollarSign, Coins, HandCoins, Landmark, TrendingUp, UsersRound, Wallet} from 'lucide-react';
 import {financeAdmin,overview,rows,type Row,type Stats} from './data';
@@ -124,7 +125,7 @@ const needed:Partial<Record<Section,(keyof Lookups)[]>>={
  inventory:['accounts'],calculator:['orders','spools'],team:['accounts'],investments:['accounts','assets'],cash:['accounts'],settings:['members'],
 };
 export default async function FinancePage({searchParams}:{searchParams:Promise<Query>}) {
- const [db,{locale},query]=await Promise.all([financeAdmin(),preferences(),searchParams]);
+ const [db,{locale},query]=await Promise.all([financeAdmin(),financePreferences(),searchParams]);
  const thai=locale==='th',l:L=(en,th)=>thai?th:en;
  const requested=typeof query.section==='string'?query.section:'overview';
  const section:Section=Object.hasOwn(sections,requested)?requested as Section:'overview';
@@ -226,7 +227,7 @@ export default async function FinancePage({searchParams}:{searchParams:Promise<Q
     <nav className="finance-module-links" aria-label={l('Financial registers','ทะเบียนการเงิน')}>{(['orders','income','expenses','investments','cash','inventory','calculator'] as const).map(key=><Link className="finance-button" key={key} href={financeUrl(key,dates)}>{localized(l,sections[key])}</Link>)}</nav>
    </>}
    {team&&<TeamCards members={team} l={l} thai={thai} dates={dates}/>}
-   {section==='settings'&&<><FinancePreferences thai={thai}/>
+   {section==='settings'&&<><FinancePreferences thai={thai}/><FinanceSecurity thai={thai}/>
     <OwnerSettings thai={thai} page={typeof query.membersPage==='string'&&/^\d{1,4}$/.test(query.membersPage)?Math.max(1,Number(query.membersPage)):1}/>
     <EmailSettings thai={thai}/><FinanceSignOut thai={thai}/><nav className="finance-module-links" aria-label={l('Finance shortcuts','ทางลัดการเงิน')}>
     <Link className="finance-button" href={financeUrl('team',dates)}>{l('Team shares','ส่วนแบ่งทีม')}</Link>

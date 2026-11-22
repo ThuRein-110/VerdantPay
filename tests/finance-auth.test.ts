@@ -1,6 +1,16 @@
 import {expect,it} from 'vitest';
 import {authInput} from '../admin/app/finance/auth/input';
+import {recentFinanceAuthentication} from '../admin/app/finance/auth/passkey-policy';
 import {admin,applicant,customer,financeDatabase,financeSeed,identity} from './finance-db-fixture';
+
+it('allows passkey management only within five minutes of password or TOTP verification',()=>{
+ const now=1000;
+ expect(recentFinanceAuthentication([{method:'password',timestamp:700}],now)).toBe(true);
+ expect(recentFinanceAuthentication([{method:'totp',timestamp:999}],now)).toBe(true);
+ expect(recentFinanceAuthentication([{method:'password',timestamp:699},{method:'webauthn',timestamp:999}],now)).toBe(false);
+ expect(recentFinanceAuthentication([{method:'totp',timestamp:1001}],now)).toBe(false);
+ expect(recentFinanceAuthentication(undefined,now)).toBe(false);
+});
 
 it('validates signup data and enforces password confirmation and byte limits',()=>{
  const form={action:'signup',name:'  Finance Member ',email:'MEMBER@EXAMPLE.TEST',password:'Long-secure-password-7',

@@ -4,7 +4,8 @@ import {useRef,useState,useTransition,type ReactNode} from 'react';
 import Link from 'next/link';
 import {useRouter} from 'next/navigation';
 import {Eye,EyeOff} from 'lucide-react';
-import {BrandMark,ThemeButton} from '../chrome';
+import {BrandMark,FinanceLanguage,ThemeButton} from '../chrome';
+import {PasskeySignIn} from '../passkeys';
 import {authInput} from '../auth/input';
 
 export type AuthScreen='login'|'signup'|'forgot-password'|'reset-password'|'verify'|'pending';
@@ -22,7 +23,7 @@ function PasswordField({name,label,thai,existing=false}:{name:string;label:strin
 }
 export function FinanceAuthFrame({thai,children}:{thai:boolean;children:ReactNode}) {
  return <div className="finance finance-login">
-  <div className="finance-login-toolbar"><ThemeButton thai={thai}/></div>
+  <div className="finance-login-toolbar"><FinanceLanguage thai={thai}/><ThemeButton thai={thai}/></div>
   <div className="finance-login-inner">
    <div className="finance-login-brand"><BrandMark/><strong>VerdantPay</strong>
     <p>{thai?'พื้นที่การเงินของธุรกิจ':'Your private business workspace'}</p></div>
@@ -112,6 +113,7 @@ export function FinanceLogin({thai,screen='login',initialMfa=false,result,reques
   {screen==='login'&&!mfa&&<>
    {result==='reset'&&<p role="status">{l('Password updated. Sign in again.','ตั้งรหัสผ่านแล้ว กรุณาเข้าสู่ระบบใหม่')}</p>}
    {submitForm('login',l('Sign in','เข้าสู่ระบบ'),<>{emailField}<PasswordField name="password" thai={thai} label={l('Password','รหัสผ่าน')} existing/></>)}
+   <PasskeySignIn thai={thai} disabled={busy}/>
    <nav className="finance-auth-links"><Link href="/finance/signup">{l('Create account','สร้างบัญชี')}</Link><Link href="/finance/forgot-password">{l('Forgot password?','ลืมรหัสผ่าน?')}</Link></nav>
   </>}
   {screen==='login'&&mfa&&<>
