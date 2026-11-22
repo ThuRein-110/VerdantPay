@@ -5,7 +5,7 @@ import {financeAccess,financeDestination,isApproved} from '../membership';
 import {canRecover} from '../auth/flow';
 import '../finance.css';
 
-export const metadata={title:'Memo Finance Sign In',robots:{index:false,follow:false}};
+export const metadata={title:'Sign In',robots:{index:false,follow:false}};
 export default async function FinanceLoginPage({searchParams}:{searchParams:Promise<{reset?:string}>}) {
  const [{locale},access,query]=await Promise.all([preferences(),financeAccess(),searchParams]);
  const destination=financeDestination(access);

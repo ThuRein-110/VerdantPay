@@ -9,7 +9,7 @@ import {financeLookups} from './lookups';
 import {quickTypes,type QuickType} from './quick-types';
 
 const quickLookups:Record<QuickType,(keyof Lookups)[]>={
- income:['accounts','orders'],expense:['accounts','expenses','orders'],investment:['accounts','assets'],payout:['accounts'],
+ income:['accounts','sales'],expense:['accounts','expenses','orders'],investment:['accounts','assets'],payout:['accounts'],
 };
 
 export async function loadQuickEntry(type:QuickType,thai:boolean) {
@@ -41,7 +41,9 @@ export async function submitFinance(action: string, requestKey: string, values: 
  try {
   const key = z.uuid().parse(requestKey);
   const data = validateSubmission(action,values);
-  const {error} = await context.db.rpc('finance_write' as never,{p_action:action,p_key:key,p_data:data} as never);
+  const {error} = action==='manual_income'
+   ?await context.db.rpc('finance_record_income' as never,{p_key:key,p_data:data} as never)
+   :await context.db.rpc('finance_write' as never,{p_action:action,p_key:key,p_data:data} as never);
   if(error) {
    if(error.code==='P0001') return {error:error.message};
    if(error.code==='23505') return {error:'A matching record already exists.'};

@@ -65,7 +65,7 @@ export function Entry({form,thai,target,initial,defaults,summary=true,quick=fals
  const [repeats,setRepeats]=useState<{id:number;values:Record<string,string>}[]>(()=>(form.repeat?.initial??Array.from({length:form.repeat?.minimum??0},()=>({}))).map((values,id)=>({id,values})));
  const router=useRouter();
  const l=(a:string,b:string)=>thai?b:a;
- const extras=quick?form.fields.filter(field=>field.key==='eligible'||(field.optional&&field.key!=='account'&&!(form.action==='payment'&&field.key==='notes'))):[];
+ const extras=quick?form.fields.filter(field=>field.key==='eligible'||(field.optional&&field.key!=='account')):[];
  const fields=quick?[...form.fields.filter(field=>field.key==='amount'),...form.fields.filter(field=>field.key!=='amount'&&!extras.includes(field))]:form.fields;
  const formContent=<form className="finance-form" onSubmit={event=>{
   event.preventDefault();
@@ -98,7 +98,7 @@ export function Entry({form,thai,target,initial,defaults,summary=true,quick=fals
   });
  }}>
   <div className="finance-fields">{fields.map(field=>
-   <Input key={field.key} field={quick&&form.action==='payment'&&field.key==='notes'?{...field,label:l('Description / notes','รายละเอียด / หมายเหตุ')}:field}
+   <Input key={field.key} field={field}
     value={initial?.[field.key]} large={quick&&field.key==='amount'}/>)}</div>
   {extras.length>0&&<details className="finance-quick-extras"><summary>{l('More details','รายละเอียดเพิ่มเติม')}</summary>
    <div className="finance-fields">{extras.map(field=><Input key={field.key} field={field} value={initial?.[field.key]}/>)}</div>

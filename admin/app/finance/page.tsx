@@ -20,7 +20,7 @@ import {financeLookups} from './lookups';
 import './finance.css';
 
 export const dynamic='force-dynamic';
-export const metadata={title:'Finance | 3D Printing MFU By Memo',robots:{index:false,follow:false}};
+export const metadata={title:'Finance',robots:{index:false,follow:false}};
 type Query = Record<string,string|string[]|undefined>;
 async function OwnerSettings({thai,page}:{thai:boolean;page:number}) {
  const owner=await financeOwner();
@@ -120,7 +120,7 @@ function TablePanel({table,data,count,section,dates,l,thai,query,sort,page,forms
  </section>;
 }
 const needed:Partial<Record<Section,(keyof Lookups)[]>>={
- orders:['accounts','sales'],income:['accounts','orders'],expenses:['accounts','expenses','orders','recurring'],
+ orders:['accounts','sales'],income:['accounts','sales','orders'],expenses:['accounts','expenses','orders','recurring'],
  inventory:['accounts'],calculator:['orders','spools'],team:['accounts'],investments:['accounts','assets'],cash:['accounts'],settings:['members'],
 };
 export default async function FinancePage({searchParams}:{searchParams:Promise<Query>}) {
@@ -231,7 +231,6 @@ export default async function FinancePage({searchParams}:{searchParams:Promise<Q
     <EmailSettings thai={thai}/><FinanceSignOut thai={thai}/><nav className="finance-module-links" aria-label={l('Finance shortcuts','ทางลัดการเงิน')}>
     <Link className="finance-button" href={financeUrl('team',dates)}>{l('Team shares','ส่วนแบ่งทีม')}</Link>
     <Link className="finance-button" href={financeUrl('records',dates)}>{l('Financial records','รายการการเงิน')}</Link>
-    <Link className="finance-button" href="/dashboard">{l('Admin workspace','พื้นที่ผู้ดูแล')}</Link>
    </nav></>}
    {stats&&section==='cash'&&<section className="finance-panel"><h2>{l('Account balances','ยอดคงเหลือตามบัญชี')}</h2><dl className="finance-cost-results">{stats.accounts.map(account=><div key={account.name}><dt>{account.name}</dt><dd>{thb(account.balance,thai?'th':'en')}</dd></div>)}</dl></section>}
    {section==='calculator'&&<div id="entry"><QuickCalculator thai={thai}/></div>}

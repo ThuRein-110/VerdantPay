@@ -18,9 +18,13 @@ function watchErrors(page:Page) {
 test('private admin route denies anonymous, unverified and non-admin sessions',async({page,context})=>{
  await page.setViewportSize({width:390,height:844});
  await page.emulateMedia({colorScheme:'light'});
- await page.goto('/finance?lang=en');
+ await page.goto('/?lang=en');
  await expect(page).toHaveURL(/\/finance\/login$/);
  await expect(page.locator('input[name=email]')).toBeVisible();
+ await expect(page.getByRole('link',{name:'Create account'})).toBeVisible();
+ for(const route of ['/configure','/models','/dashboard','/api/auth']){
+  expect((await page.request.get(route)).status()).toBe(404);
+ }
  await overflow(page);
  mkdirSync(screenshots,{recursive:true});
  await page.screenshot({path:resolve(screenshots,'login-light.png')});
@@ -85,7 +89,7 @@ test('signup confirmation, pending approval, scoped member login and password re
  await page.getByRole('link',{name:'Check approval'}).click();
  await expect(page.getByRole('heading',{name:'Pending approval'})).toBeVisible();
  await page.reload();
- await page.goto('/finance');
+ await page.goto('/');
  await expect(page).toHaveURL(/\/pending$/);
  expect((await page.request.get('/finance/export?report=profit&format=csv')).status()).toBe(401);
  await submit('Sign out');
@@ -223,19 +227,17 @@ test('mobile layouts, system and saved themes, navigation, chart, keyboard dialo
  await overflow(page);
 
  await page.locator('.finance-fab').click();
- const order=sheet.getByRole('combobox',{name:'Order',exact:true});
- await expect(order).toBeVisible();
- const openOrder=await order.getByRole('option',{name:/DEMO-003/}).getAttribute('value');
- await order.selectOption(openOrder!);
+ await sheet.getByRole('combobox',{name:'Income category',exact:true}).selectOption({label:'General income'});
+ await sheet.getByLabel('Description',{exact:true}).fill('QA manual income');
+ await expect(sheet.getByRole('combobox',{name:'Order',exact:true})).toHaveCount(0);
  await sheet.getByLabel('Amount (THB)',{exact:true}).fill('125.25');
  await sheet.getByRole('combobox',{name:'Account',exact:true}).selectOption({label:'Cash'});
- await sheet.getByLabel('Description / notes',{exact:true}).fill('QA sales receipt');
  await sheet.getByRole('button',{name:'Save',exact:true}).click();
  await expect(sheet).not.toBeVisible();
  await nav.getByRole('link',{name:'Home',exact:true}).click();
  await expect(page.locator('.finance-balance')).toBeVisible();
  await page.getByRole('link',{name:'Records',exact:true}).click();
- await expect(page.getByText('QA sales receipt',{exact:true})).toBeVisible();
+ await expect(page.getByText('QA manual income',{exact:true})).toBeVisible();
 
  await nav.getByRole('link',{name:'Reports',exact:true}).click();
  await expect(nav.getByRole('link',{name:'Reports',exact:true})).toHaveAttribute('aria-current','page');
@@ -335,7 +337,7 @@ test('tablet and desktop resize, theme and desktop add panel',async({page,contex
  await page.locator('.finance-sidebar-add').click();
  const dialog=page.getByRole('dialog');
  await expect(dialog).toBeVisible();
- await expect(dialog.getByRole('combobox',{name:'Order',exact:true})).toBeVisible();
+ await expect(dialog.getByRole('combobox',{name:'Income category',exact:true})).toBeVisible();
  const box=await dialog.boundingBox();
  expect(box?.width).toBeLessThan(500);
  expect((box?.x??0)+(box?.width??0)).toBeGreaterThan(1430);

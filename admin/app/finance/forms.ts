@@ -47,6 +47,8 @@ export function definitions(l:L, lists:Lookups, today:string) {
    number('discount',l('Discount (THB)','ส่วนลด (บาท)')),number('fee',l('Additional fees (THB)','ค่าธรรมเนียม (บาท)'))]}});
  const payment=record('payment',l('Record payment or refund','บันทึกรับหรือคืนเงิน'),
   [target(l('Order','คำสั่งซื้อ'),lists.orders),date(),{...select('kind',l('Type','ประเภท'),choice(['receipt','refund'])),value:'receipt'},account,amount,notes]);
+ const manualIncome=record('manual_income',l('Add income','เพิ่มรายรับ'),
+  [date(),select('category',l('Income category','หมวดหมู่รายรับ'),lists.sales),field('description',l('Description','รายการ')),account,amount,notes]);
  const expense=record('expense',l('Add expense','เพิ่มค่าใช้จ่าย'),
   [date(),...expenseFields,target(l('Related order','คำสั่งซื้อที่เกี่ยวข้อง'),lists.orders,true),notes]);
  const spool=record('spool',l('Add filament purchase','เพิ่มการซื้อเส้นพิมพ์'),
@@ -61,7 +63,7 @@ export function definitions(l:L, lists:Lookups, today:string) {
  const member=record('member',l('Add team member','เพิ่มสมาชิกทีม'),[field('description',l('Member name','ชื่อสมาชิก'))]);
  const job=record('job',l('Save estimate to order','บันทึกประมาณการให้คำสั่งซื้อ'),[target(l('Order','คำสั่งซื้อ'),lists.orders)],{cost:'estimate'});
  const sectionForms:Partial<Record<Section,Form[]>>={
-  orders:[order], income:[payment], expenses:[expense,recurring,record('expense',l('Post recurring expense','ลงรายการค่าใช้จ่ายประจำ'),
+  orders:[order], income:[manualIncome,payment], expenses:[expense,recurring,record('expense',l('Post recurring expense','ลงรายการค่าใช้จ่ายประจำ'),
    [date(),select('recurring',l('Template','รายการต้นแบบ'),lists.recurring),notes])],
   inventory:[spool], calculator:[job],
   team:[record('close',l('Close month','ปิดเดือน'),

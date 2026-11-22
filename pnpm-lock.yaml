@@ -81,21 +81,9 @@ importers:
       '@mfu/database':
         specifier: workspace:*
         version: link:../packages/database
-      '@mfu/pricing':
-        specifier: workspace:*
-        version: link:../packages/pricing
-      '@mfu/three':
-        specifier: workspace:*
-        version: link:../packages/three
-      '@mfu/types':
-        specifier: workspace:*
-        version: link:../packages/types
       '@mfu/ui':
         specifier: workspace:*
         version: link:../packages/ui
-      '@mfu/validation':
-        specifier: workspace:*
-        version: link:../packages/validation
       '@tailwindcss/postcss':
         specifier: ^4.1.18
         version: 4.3.4

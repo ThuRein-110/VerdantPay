@@ -1,6 +1,5 @@
 @import "tailwindcss";
 @import "../../packages/ui/src/styles.css";
-@import "../../packages/ui/src/brochure.css";
 @source "../../packages/ui/src";
 
 /* The admin CSP allows local fonts. Use the bundled Thai font and platform sans-serif. */

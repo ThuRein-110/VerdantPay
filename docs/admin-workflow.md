@@ -2,6 +2,8 @@
 
 ## Memo Finance
 
+The standalone VerdantPay homepage opens Finance. **Add income** records a payment and recognizes it as revenue in one operation. Enter the date, category, description, account and amount. Use the separate payment form for an existing invoice or refund.
+
 Open **Finance** from the admin navigation or visit `/finance` on the admin deployment. New users select **Create account**, confirm their email in the same browser, and wait on **Pending approval**. From **Settings → Account approvals**, the owner can assign Finance admin, link a Team member to an existing profit-share member, or revoke access. Approved users complete authenticator verification. Team accounts can see their linked allocations and payment history. For lost passwords, open **Forgot password** and follow the emailed link in the same browser.
 
 On mobile, **Records** on the dashboard opens transaction history and the financial registers. The centered plus opens the entry sheet. **Appearance** under Settings lets you restore the system theme or switch between English and Thai. The light and dark theme toggle is also available on the account screens.

@@ -24,7 +24,7 @@ export function FinanceAuthFrame({thai,children}:{thai:boolean;children:ReactNod
  return <div className="finance finance-login">
   <div className="finance-login-toolbar"><ThemeButton thai={thai}/></div>
   <div className="finance-login-inner">
-   <div className="finance-login-brand"><BrandMark/><strong>Memo Finance</strong>
+   <div className="finance-login-brand"><BrandMark/><strong>VerdantPay</strong>
     <p>{thai?'พื้นที่การเงินของธุรกิจ':'Your private business workspace'}</p></div>
    <section className="inline-auth">{children}</section>
   </div>

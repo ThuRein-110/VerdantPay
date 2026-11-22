@@ -4,7 +4,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import {useRouter} from 'next/navigation';
 import {createContext,Fragment,useContext,useEffect,useRef,useState,useSyncExternalStore,type ReactNode} from 'react';
-import {ArrowDownLeft,ArrowUpRight,Boxes,Calculator,ChartNoAxesCombined,CheckCircle2,ChevronDown,ChevronRight,CircleUserRound,Coins,FileChartColumn,House,Landmark,LayoutList,LogOut,Moon,Plus,Settings,Sun,Target,UsersRound,Wallet,X} from 'lucide-react';
+import {ArrowDownLeft,ArrowUpRight,Boxes,Calculator,ChartNoAxesCombined,CheckCircle2,ChevronDown,CircleUserRound,Coins,FileChartColumn,House,Landmark,LayoutList,Moon,Plus,Settings,Sun,Target,UsersRound,Wallet,X} from 'lucide-react';
 import {useLanguage} from '@mfu/ui/settings.tsx';
 import {loadQuickEntry} from './actions';
 import {sections,type Filters,type Section} from './model';
@@ -70,11 +70,7 @@ function AddSheet({dialogRef,thai,mode,change,status,onClose,onSaved}:{dialogRef
    {!status?<div className="finance-form-skeleton" role="status"><span className="sr-only">{l('Loading form','กำลังโหลดแบบฟอร์ม')}</span><i/><i/><i/></div>:null}
    {status?.error&&<p role="alert" className="finance-error">{status.error} <button type="button" className="finance-button" onClick={()=>change(mode)}>{l('Retry','ลองใหม่')}</button></p>}
    {status?.message&&<p className="finance-empty">{status.message}</p>}
-   {status?.form&&<>
-    {mode==='income'&&status.form.fields.find(field=>field.key==='target')?.list?.length===0
-     ?<div className="finance-empty"><p>{l('Create an order before recording a receipt.','สร้างคำสั่งซื้อก่อนบันทึกรับเงิน')}</p><Link href="/finance?section=orders#entry" onClick={()=>dialogRef.current?.close()}>{l('Go to orders','ไปที่คำสั่งซื้อ')} <ChevronRight size={16}/></Link></div>
-     :<Entry key={mode} form={status.form} thai={thai} summary={false} quick onSaved={onSaved}/>}
-   </>}
+   {status?.form&&<Entry key={mode} form={status.form} thai={thai} summary={false} quick onSaved={onSaved}/>}
   </div>
  </dialog>;
 }
@@ -115,7 +111,7 @@ export function FinanceChrome({children,section,dates,thai,title,period}:{childr
  return <QuickContext.Provider value={ready?open:null}>
   <div className="finance">
    <aside className="finance-sidebar">
-    <Link className="finance-sidebar-title" href={href('overview')}><BrandMark/><span><strong>Memo Finance</strong><small>3D Printing MFU</small></span></Link>
+    <Link className="finance-sidebar-title" href={href('overview')}><BrandMark/><span><strong>VerdantPay</strong><small>Memo Finance</small></span></Link>
     <QuickButton className="finance-sidebar-add"><Plus size={19}/>{l('Add record','เพิ่มรายการ')}</QuickButton>
     <nav aria-label={l('Finance navigation','เมนูการเงิน')}>
      {nav.map(([key,en,th,Icon])=><Link key={key} href={href(key)} aria-current={key===active?'page':undefined}><Icon size={19}/>{l(en,th)}</Link>)}
@@ -123,7 +119,6 @@ export function FinanceChrome({children,section,dates,thai,title,period}:{childr
     <nav className="finance-secondary-nav" aria-label={l('Finance modules','เมนูย่อยการเงิน')}>
      {secondary.map(([key,Icon])=><Link key={key} href={href(key)} aria-current={key===section?'page':undefined}><Icon size={17}/>{sections[key][thai?1:0]}</Link>)}
     </nav>
-    <Link className="finance-back" href="/dashboard"><LogOut size={17}/>{l('Admin workspace','พื้นที่ผู้ดูแล')}</Link>
    </aside>
    <div className="finance-workspace">
     <header className="finance-topbar">

@@ -52,6 +52,7 @@ export function calculate(input: CostInput) {
 const dateTarget = {day, target:uuid, notes};
 const expenseFields = {category:uuid, description:label, vendor:notes, amount:money, account:optUuid, eligible:optBool};
 const schemas = {
+ manual_income:z.object({day,category:uuid,account:uuid,description:label,amount:money.refine(value=>Number(value)>0),notes}),
  order: z.object({day, reference:label.max(100), customer:label, contact:notes, notes, target:optUuid, lines:z.array(line).min(1).max(25)}),
  recognize:z.object(dateTarget), cancel:z.object(dateTarget),
  payment:z.object({...dateTarget, account:uuid, amount:money, kind:z.enum(['receipt','refund'])}),

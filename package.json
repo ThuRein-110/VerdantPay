@@ -6,12 +6,12 @@
     "node": ">=22.12.0"
   },
   "scripts": {
-    "dev": "turbo dev",
-    "build": "turbo build",
+    "dev": "turbo dev --filter=@mfu/admin",
+    "build": "turbo build --filter=@mfu/admin",
     "typecheck": "turbo typecheck && tsc -p tsconfig.tools.json",
     "lint": "eslint .",
     "test": "vitest run",
-    "test:e2e": "playwright test",
+    "test:e2e": "playwright test --config tests/finance-browser/playwright.config.ts",
     "test:rls": "node scripts/rls-test.mjs",
     "worker": "tsx scripts/worker.ts",
     "security": "pnpm audit --prod --audit-level high",

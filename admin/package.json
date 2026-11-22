@@ -10,11 +10,7 @@
   },
   "dependencies": {
     "@mfu/database": "workspace:*",
-    "@mfu/pricing": "workspace:*",
-    "@mfu/three": "workspace:*",
-    "@mfu/types": "workspace:*",
     "@mfu/ui": "workspace:*",
-    "@mfu/validation": "workspace:*",
     "@tailwindcss/postcss": "^4.1.18",
     "chart.js": "^4.6.1",
     "csv-stringify": "^6.9.0",

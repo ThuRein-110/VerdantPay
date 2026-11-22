@@ -34,6 +34,30 @@ describe('finance ledger',()=>{
   expect((await save(1,5000)).rows[0].saved).toBe(false);
   expect((await db.query('select completed from public.finance_goals where id=$1',[id])).rows[0]).toEqual({completed:true});
  });
+ it('posts manual income once to cash and profit and rolls back failed submissions',async()=>{
+  const submit=(key:string,data:object)=>db.query<{id:string}>(
+   'select public.finance_record_income($1,$2::jsonb) id',[key,JSON.stringify(data)]);
+  const request={day:sample.today,category:sample.sales,account:sample.cash,description:'Direct income',amount:12525};
+  await identity(db,customer);
+  await expect(submit(randomUUID(),request)).rejects.toThrow('Finance admin MFA');
+  await identity(db);
+  const overview=async()=> (await db.query<{value:Record<string,number>}>(
+   'select public.finance_overview($1,$1) value',[sample.today])).rows[0].value;
+  const before=await overview();
+  const key=randomUUID();
+  const saved=(await submit(key,request)).rows[0].id;
+  expect((await submit(key,request)).rows[0].id).toBe(saved);
+  await expect(submit(key,{...request,amount:1})).rejects.toThrow('Request key already used');
+  const failed=randomUUID();
+  await expect(submit(failed,{...request,account:randomUUID()})).rejects.toThrow();
+  expect((await db.query('select id from public.finance_orders where id=$1',[failed])).rows).toHaveLength(0);
+  expect((await db.query('select amount_satang,notes from public.finance_payment_register where id=$1',[saved])).rows)
+   .toEqual([{amount_satang:12525,notes:'Direct income'}]);
+  const after=await overview();
+  expect(after.revenue-before.revenue).toBe(12525);
+  expect(after.cash-before.cash).toBe(12525);
+  expect(after.net-before.net).toBe(12525);
+ });
  it('reconciles the 15/15/70 close and a partial payout',async()=>{
   const r=await db.query<{name_snapshot:string;amount_satang:number;paid_satang:number;remaining_satang:number}>(
    'select name_snapshot,amount_satang,paid_satang,remaining_satang from public.finance_payout_summary order by name_snapshot');

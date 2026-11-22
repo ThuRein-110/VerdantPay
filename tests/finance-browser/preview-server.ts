@@ -112,6 +112,8 @@ async function start() {
      'select public.finance_overview($1,$2) value',[body.p_from,body.p_to])).rows[0].value);
     if(path==='/rest/v1/rpc/finance_write')return respond(res,(await db.query<{value:string}>(
      'select public.finance_write($1,$2,$3::jsonb) value',[body.p_action,body.p_key,JSON.stringify(body.p_data)])).rows[0].value);
+    if(path==='/rest/v1/rpc/finance_record_income')return respond(res,(await db.query<{value:string}>(
+     'select public.finance_record_income($1,$2::jsonb) value',[body.p_key,JSON.stringify(body.p_data)])).rows[0].value);
     if(path==='/rest/v1/rpc/finance_save_goal')return respond(res,(await db.query<{value:boolean}>(
      'select public.finance_save_goal($1,$2,$3,$4,$5,$6) value',[body.p_id,body.p_version,body.p_title,body.p_target,body.p_saved,body.p_deadline])).rows[0].value);
     const relation=path.match(/^\/rest\/v1\/(finance_[a-z_]+)$/)?.[1];
