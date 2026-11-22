@@ -66,7 +66,7 @@ export function definitions(l:L, lists:Lookups, today:string) {
   orders:[order], income:[manualIncome,payment], expenses:[expense,recurring,record('expense',l('Post recurring expense','ลงรายการค่าใช้จ่ายประจำ'),
    [date(),select('recurring',l('Template','รายการต้นแบบ'),lists.recurring),notes])],
   inventory:[spool], calculator:[job],
-  team:[record('close',l('Close month','ปิดเดือน'),
+  shares:[record('close',l('Close month','ปิดเดือน'),
    [date(l('First day of month','วันแรกของเดือน'),priorMonth.toISOString().slice(0,10))],{confirm:l('Closing freezes this month and earlier periods. Continue?','การปิดเดือนจะล็อกงวดนี้และงวดก่อนหน้า ดำเนินการต่อหรือไม่?')})],
   investments:[
    record('capital',l('Record capital movement','บันทึกรายการเงินทุน'),

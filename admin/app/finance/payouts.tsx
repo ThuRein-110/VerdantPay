@@ -2,9 +2,8 @@
 
 import {useRef,useState} from 'react';
 import {useRouter} from 'next/navigation';
-import {baht,payoutName,thb,type L} from './model';
-import type {Choice} from './forms';
-import {recordMonthPayout} from './actions';
+import {payoutName,thb,type L} from './model';
+import {recordManualPayout} from './actions';
 
 export type PayoutRecipient={id:string;name:string;points:number|null;share:string;paid:string;remaining:string};
 export type PayoutMonth={
@@ -12,89 +11,96 @@ export type PayoutMonth={
  history:{id:string;day:string;recipient:string;amount:string;kind:'team'|'owner'|'unlinked'}[];
  historyCount:number;
 };
-
-const errors:Record<string,[string,string]>={
- invalid:['Enter a valid amount and payment date.','กรอกจำนวนเงินและวันที่จ่ายให้ถูกต้อง'],
- date:['Choose a date from the last day of the profit month through today.','เลือกวันที่ตั้งแต่วันสุดท้ายของเดือนกำไรถึงวันนี้'],
- balance:['The amount exceeds the remaining balance. Refresh to see the latest balance.','จำนวนเงินเกินยอดคงเหลือ รีเฟรชเพื่อดูยอดล่าสุด'],
- duplicate:['A payment for this recipient, date and amount is already recorded.','มีรายการจ่ายให้ผู้รับรายนี้ในวันที่และจำนวนเงินเดียวกันแล้ว'],
- open:['Close this profit month before recording a payment.','ปิดเดือนนี้ก่อนบันทึกการจ่าย'],
- profit:['This month has no positive net profit available for payment.','เดือนนี้ไม่มีกำไรสุทธิสำหรับจ่าย'],
- account:['Choose an available payment account.','เลือกบัญชีชำระเงินที่ใช้งานได้'],
- authorization:['Sign in again with your authenticator to record a payment.','เข้าสู่ระบบและยืนยันตัวตนอีกครั้งเพื่อบันทึกการจ่าย'],
- retry:['The payment could not be confirmed. Try again using this form.','ยืนยันการจ่ายไม่ได้ กรุณาลองอีกครั้งด้วยแบบฟอร์มนี้'],
+export type ManualPayoutData={
+ recipients:{id:string;name:string}[];
+ history:{id:string;day:string;recipient:string;amount:string;excess:string}[];
+ count:number;
 };
 
-export function PayoutCards({data,month,today,lastDay,accounts,thai}:{data:PayoutMonth;month:string;today:string;lastDay:string;accounts:Choice[];thai:boolean}) {
+const errors:Record<string,[string,string]>={
+ invalid:['Choose a recipient and enter a positive amount with up to two decimal places.','เลือกผู้รับและกรอกจำนวนเงินมากกว่าศูนย์ โดยมีทศนิยมไม่เกินสองตำแหน่ง'],
+ date:['Choose a valid payment date no later than today.','เลือกวันที่จ่ายที่ถูกต้องและไม่เกินวันนี้'],
+ duplicate:['A payout for this recipient, date, and amount is already recorded.','มีรายการจ่ายให้ผู้รับรายนี้ในวันที่และจำนวนเงินเดียวกันแล้ว'],
+ recipient:['Choose an existing recipient.','เลือกผู้รับจากรายการ'],
+ account:['The default Cash account is unavailable.','บัญชีเงินสดเริ่มต้นไม่พร้อมใช้งาน'],
+ authorization:['Sign in again with your authenticator to record a payout.','เข้าสู่ระบบและยืนยันตัวตนอีกครั้งเพื่อบันทึกการจ่าย'],
+ retry:['The payout could not be confirmed. Try again using this form.','ยืนยันการจ่ายไม่ได้ กรุณาลองอีกครั้งด้วยแบบฟอร์มนี้'],
+};
+
+export function ManualPayoutForm({recipients,today,thai}:{recipients:ManualPayoutData['recipients'];today:string;thai:boolean}) {
+ const l:L=(en,th)=>thai?th:en;
+ const locale=thai?'th':'en';
+ const form=useRef<HTMLFormElement>(null);
+ const attempt=useRef<{key:string;payload:string}>(null);
+ const sending=useRef(false);
+ const router=useRouter();
+ const [pending,setPending]=useState(false);
+ const [error,setError]=useState('');
+ const [saved,setSaved]=useState(false);
+ const [warning,setWarning]=useState<{available:string;excess:string}|null>(null);
+ async function submit(confirm?:string){
+  if(sending.current||!form.current?.reportValidity())return;
+  const fields=new FormData(form.current);
+  const input={recipient:String(fields.get('recipient')),date:String(fields.get('date')),amount:String(fields.get('amount'))};
+  const payload=JSON.stringify(input);
+  if(attempt.current?.payload!==payload)attempt.current={key:crypto.randomUUID(),payload};
+  sending.current=true;setPending(true);setError('');setSaved(false);
+  try {
+   const result=await recordManualPayout({...input,key:attempt.current.key,confirm});
+   if(result.status==='confirm'){setWarning(result);return;}
+   if(result.status==='error'){setWarning(null);setError(l(...(errors[result.error]??errors.retry)));return;}
+   form.current?.reset();attempt.current=null;setWarning(null);setSaved(true);router.refresh();
+  } catch {setError(l(...errors.retry));}
+  finally{sending.current=false;setPending(false);}
+ }
+ return <section className="finance-panel" aria-label={l('Record a payout','บันทึกการจ่ายส่วนแบ่ง')}>
+  <form ref={form} className="finance-form finance-manual-payout" onChange={()=>{setWarning(null);setError('');setSaved(false);}}
+   onSubmit={event=>{event.preventDefault();if(!warning)void submit();}}>
+   <div className="finance-fields">
+    <label>{l('Team Member','สมาชิกทีม')}<select name="recipient" defaultValue="" required disabled={pending}>
+     <option value="" disabled>{l('Select a recipient','เลือกผู้รับ')}</option>
+     {recipients.map(({id,name})=><option value={id} key={id}>{payoutName(name,thai)}
+      {id==='owner'&&name!=='Owner'?' · '+l('Owner','เจ้าของ'):''}</option>)}
+    </select></label>
+    <label>{l('Amount (THB)','จำนวนเงิน (บาท)')}<input type="number" name="amount" inputMode="decimal" min="0.01"
+     max="999999999.99" step="0.01" required disabled={pending}/></label>
+    <label>{l('Payment Date','วันที่จ่าย')}<input type="date" name="date" min="2000-01-01" max={today} defaultValue={today}
+     required disabled={pending}/></label>
+   </div>
+   {warning&&<div className="finance-payout-warning" role="alert">
+    <strong>{l('This payout exceeds the unpaid allocation.','การจ่ายครั้งนี้เกินยอดส่วนแบ่งค้างจ่าย')}</strong>
+    <p>{l('Available unpaid allocation','ยอดส่วนแบ่งค้างจ่าย')} {thb(warning.available,locale)} · {l('Excess','ยอดเกิน')} {thb(warning.excess,locale)}</p>
+    <p>{l('Confirm to record the full amount. The excess will remain outside profit allocations.','ยืนยันเพื่อบันทึกเต็มจำนวน ยอดเกินจะไม่รวมในส่วนแบ่งกำไร')}</p>
+   </div>}
+   {error&&<p className="finance-error" role="alert">{error}</p>}
+   {saved&&<p role="status">{l('Payout recorded.','บันทึกการจ่ายแล้ว')}</p>}
+   <div className="finance-submit">
+    {warning?<><button type="button" className="finance-button primary" disabled={pending} onClick={()=>void submit(warning.available)}>
+     {pending?l('Saving…','กำลังบันทึก…'):l('Confirm payout above allocation','ยืนยันการจ่ายเกินส่วนแบ่ง')}</button>
+     <button type="button" className="finance-button" disabled={pending} onClick={()=>setWarning(null)}>{l('Cancel','ยกเลิก')}</button></>:
+     <button className="finance-button primary" disabled={pending}>{pending?l('Saving…','กำลังบันทึก…'):l('Record Payout','บันทึกการจ่าย')}</button>}
+   </div>
+  </form>
+ </section>;
+}
+
+export function PayoutCards({data,thai}:{data:PayoutMonth;thai:boolean}) {
  const l:L=(en,th)=>thai?th:en,locale=thai?'th':'en';
  const percent=new Intl.NumberFormat(locale,{style:'percent',maximumFractionDigits:2});
- const [saved,setSaved]=useState(false);
- return <>{saved&&<p role="status" className="finance-panel">{l('Payment recorded.','บันทึกการจ่ายแล้ว')}</p>}<div className="finance-team-cards">
-  {data.recipients.map(recipient=>{
-   const {id,points,share,paid,remaining}=recipient;
-   const owner=id==='owner',name=owner?l('Owner','เจ้าของ'):payoutName(recipient.name,thai);
+ return <div className="finance-team-cards">
+  {data.recipients.map(({id,name,points,share,paid,remaining})=>{
+   const owner=id==='owner';
    const state=Number(paid)>0?(Number(remaining)>0?'partial':'paid'):'unpaid';
    const label=state==='paid'?l('Paid','จ่ายแล้ว'):state==='partial'?l('Partially Paid','จ่ายบางส่วน'):l('Unpaid','ยังไม่จ่าย');
    return <article className="finance-panel finance-team-card finance-payout-card" key={id}>
-    <header><div><h3>{name}</h3>{points!==null&&<p>{percent.format(points/10000)}</p>}</div>
+    <header><div><h3>{payoutName(name,thai)}</h3>{points!==null&&<p>{percent.format(points/10000)}</p>}</div>
      {Number(share)>0&&<span className={`finance-state state-${state}`}>{label}</span>}</header>
     <dl>
      <div><dt>{data.closed?l('Allocated','จัดสรรแล้ว'):l('Estimated allocation','ประมาณการส่วนแบ่ง')}</dt><dd>{thb(share,locale)}</dd></div>
      <div><dt>{owner?l('Withdrawn','ถอนแล้ว'):l('Total paid','จ่ายแล้วทั้งหมด')}</dt><dd>{thb(paid,locale)}</dd></div>
      <div><dt>{owner?l('Remaining to withdraw','ยอดคงเหลือที่ถอนได้'):l('Remaining unpaid','ยอดค้างจ่าย')}</dt><dd>{thb(remaining,locale)}</dd></div>
     </dl>
-    {data.closed&&Number(data.net)>0&&Number(remaining)>0&&<PaymentForm
-     key={`${month}/${remaining}`} recipient={id} name={name} thai={thai} month={month}
-     today={today} lastDay={lastDay} balance={remaining} accounts={accounts} onSaved={()=>setSaved(true)}/>}
    </article>;
   })}
- </div></>;
-}
-
-function PaymentForm({recipient,name,month,today,lastDay,balance,accounts,thai,onSaved}:{
- recipient:string;name:string;month:string;today:string;lastDay:string;balance:string;accounts:Choice[];thai:boolean;onSaved:()=>void;
-}) {
- const l:L=(en,th)=>thai?th:en;
- const [open,setOpen]=useState(false);
- const [pending,setPending]=useState(false);
- const [error,setError]=useState('');
- const router=useRouter();
- const attempt=useRef<{key:string;payload:string}>(null);
- const sending=useRef(false);
- return <div className="finance-payout-form">
-  {open?<form className="finance-form" onSubmit={async event=>{
-   event.preventDefault();
-   if(sending.current)return;
-   const fields=new FormData(event.currentTarget);
-   const input={month,recipient,date:String(fields.get('date')),amount:String(fields.get('amount')),
-    account:String(fields.get('account')??''),notes:String(fields.get('notes')??'')};
-   const payload=JSON.stringify(input);
-   if(attempt.current?.payload!==payload)attempt.current={key:crypto.randomUUID(),payload};
-   sending.current=true;setPending(true);setError('');
-   try {
-    const result=await recordMonthPayout({...input,key:attempt.current.key});
-    if(!result.saved){setError(l(...(errors[result.error??'retry']??errors.retry)));return;}
-    attempt.current=null;setOpen(false);onSaved();
-    router.refresh();
-   } catch {setError(l(...errors.retry));}
-   finally{sending.current=false;setPending(false);}
-  }}>
-   <label>{l('Recipient','ผู้รับ')}<input value={name} readOnly/></label>
-   <label>{l('Amount (THB)','จำนวนเงิน (บาท)')}<input type="number" name="amount" autoFocus inputMode="decimal" required min="0.01"
-    max={baht(balance)} step="0.01" defaultValue={baht(balance)}/></label>
-   <label>{l('Payment date','วันที่จ่าย')}<input type="date" name="date" min={lastDay} max={today} defaultValue={today} required/></label>
-   <details><summary>{l('More details','รายละเอียดเพิ่มเติม')}</summary>
-    <label>{l('Payment account','บัญชีชำระเงิน')}<select name="account" defaultValue="">
-     <option value="">{l('Cash (default)','เงินสด (ค่าเริ่มต้น)')}</option>
-     {accounts.map(account=><option key={account.value} value={account.value}>{account.label}</option>)}
-    </select></label>
-    <label>{l('Notes','หมายเหตุ')}<textarea name="notes" maxLength={1000}/></label>
-   </details>
-   {error&&<p className="finance-error" role="alert">{error}</p>}
-   <div className="finance-submit">
-    <button className="finance-button primary" disabled={pending}>{pending?l('Saving…','กำลังบันทึก…'):l('Confirm payment','ยืนยันการจ่าย')}</button>
-    <button className="finance-button" type="button" disabled={pending} onClick={()=>{setOpen(false);setError('');}}>{l('Cancel','ยกเลิก')}</button>
-   </div>
-  </form>:<button className="finance-button primary" type="button" onClick={()=>setOpen(true)}>{l('Record payment','บันทึกการจ่าย')}</button>}
  </div>;
 }

@@ -5,7 +5,7 @@ export const sections = {
  overview: ['Overview', 'ภาพรวม'], records: ['Records','รายการ'], orders: ['Orders', 'คำสั่งซื้อ'], income: ['Income', 'รายรับ'],
  expenses: ['Expenses', 'ค่าใช้จ่าย'], inventory: ['Filament inventory', 'คลังเส้นพิมพ์'],
  calculator: ['Print cost calculator', 'คำนวณต้นทุนพิมพ์'], profit: ['Profit & loss', 'กำไรและขาดทุน'],
- team: ['Team Payouts', 'จ่ายส่วนแบ่งทีม'], investments: ['Investments', 'เงินลงทุน'],
+ team: ['Team Payouts', 'จ่ายส่วนแบ่งทีม'], shares: ['Profit Sharing', 'การแบ่งกำไร'], investments: ['Investments', 'เงินลงทุน'],
  cash: ['Cash flow', 'กระแสเงินสด'], reports: ['Reports', 'รายงาน'], goals: ['Business goals','เป้าหมายธุรกิจ'], settings: ['Settings', 'การตั้งค่า'],
 } as const;
 export type Section = keyof typeof sections;

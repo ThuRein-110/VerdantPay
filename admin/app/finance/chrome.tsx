@@ -95,7 +95,7 @@ export function FinanceChrome({children,section,dates,thai,title,period}:{childr
  useEffect(()=>()=>{if(timer.current)clearTimeout(timer.current);},[]);
  const l=(en:string,th:string)=>thai?th:en;
  const href=(key:Section)=>'/finance?'+new URLSearchParams({section:key,range:dates.range,from:dates.from,to:dates.to});
- const active=nav.some(([key])=>key===section)?section:section==='reports'?'profit':section==='team'?'settings':'records';
+ const active=nav.some(([key])=>key===section)?section:section==='reports'||section==='shares'?'profit':section==='team'?'settings':'records';
  const change=async (type:QuickType)=>{
   setMode(type);
   setStatus(null);
@@ -134,7 +134,7 @@ export function FinanceChrome({children,section,dates,thai,title,period}:{childr
      <div className="finance-identity"><Link href={href('overview')} className="finance-mobile-mark" aria-label={l('Memo Finance home','หน้าหลักการเงิน Memo')}><BrandMark/></Link><div>
       <h1 className="finance-mobile-title">{section==='overview'?l('Hello, Memo','สวัสดี Memo'):title}</h1>
       <strong className="finance-desktop-title">Memo Finance</strong>
-      {['goals','settings'].includes(section)?null:<a href="#finance-period" className="finance-top-period">{period}<ChevronDown size={12}/></a>}
+      {['goals','settings','team'].includes(section)?null:<a href="#finance-period" className="finance-top-period">{period}<ChevronDown size={12}/></a>}
      </div></div>
      <div className="finance-top-actions"><ThemeButton thai={thai}/><Link className="finance-icon-button" href={href('settings')} aria-label={l('Profile and settings','โปรไฟล์และการตั้งค่า')}><CircleUserRound size={21}/></Link></div>
     </header>

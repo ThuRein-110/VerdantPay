@@ -4,7 +4,62 @@ import type {PGlite} from '@electric-sql/pglite';
 import {financeDatabase,financeSeed,financeWrite,identity,admin,customer} from './finance-db-fixture';
 import {calculate,period,validateSubmission} from '../admin/app/finance/model';
 import {csv,excel} from '../admin/app/finance/export-files';
-import type {PayoutMonth} from '../admin/app/finance/payouts';
+import type {ManualPayoutData,PayoutMonth} from '../admin/app/finance/payouts';
+
+it('requires fresh confirmation for excess manual payouts and reconciles cash, history and allocations',async()=>{
+ const db=await financeDatabase();
+ try {
+  const sample=await financeSeed(db);
+  const history=async()=> (await db.query<{value:ManualPayoutData}>('select public.finance_manual_payout_page() value')).rows[0].value;
+  const report=async()=> (await db.query<{value:PayoutMonth}>('select public.finance_month_payout_page($1) value',[sample.prior])).rows[0].value;
+  const overview=async()=> (await db.query<{value:{cash:number;net:number}}>(
+   'select public.finance_overview($1,$2) value',[sample.prior,sample.today])).rows[0].value;
+  const submit=async(recipient:string,amount:number,key=randomUUID(),limit:number|null=null,date=sample.today)=>
+   (await db.query<{value:unknown}>('select public.finance_record_manual_payout($1,$2,$3,$4,$5) value',
+    [key,recipient,date,amount,limit])).rows[0].value;
+  const before=await overview();
+  const first=await history();
+  const member=first.recipients[0].id;
+  expect(first.recipients.map(row=>row.name)).toEqual(['Team Member 1','Team Member 2','Owner']);
+  expect(first.history).toMatchObject([{recipient:'Team Member 1',amount:'15000',excess:'0'}]);
+  await identity(db,customer,'aal2');
+  await expect(history()).rejects.toThrow('Finance admin MFA');
+  await identity(db,admin,'aal1');
+  await expect(submit(member,1)).rejects.toThrow('Finance admin MFA');
+  await identity(db);
+  await expect(submit(member,0)).rejects.toThrow('payout:invalid');
+  await expect(submit(member,1,randomUUID(),null,'2199-01-01')).rejects.toThrow('payout:date');
+  const partial=randomUUID();
+  expect(await submit(member,10000,partial)).toEqual({status:'saved',id:partial});
+  expect(await submit(member,10000,partial)).toEqual({status:'saved',id:partial});
+  await expect(submit(member,10000)).rejects.toThrow('payout:duplicate');
+  expect((await report()).recipients[0]).toMatchObject({paid:'25000',remaining:'20000'});
+  const excess=randomUUID();
+  expect(await submit(member,25000,excess)).toEqual({status:'confirm',available:'20000',excess:'5000'});
+  expect((await history()).count).toBe(2);
+  await financeWrite(db,'payout',{day:sample.today,target:sample.payout,account:sample.bank,amount:5000});
+  expect(await submit(member,25000,excess,20000)).toEqual({status:'confirm',available:'15000',excess:'10000'});
+  expect(await submit(member,25000,excess,15000)).toEqual({status:'saved',id:excess});
+  expect((await report()).recipients[0]).toMatchObject({paid:'45000',remaining:'0'});
+  expect((await db.query('select amount_satang from public.finance_payouts where unallocated_member_id=$1',[member])).rows)
+   .toEqual([{amount_satang:10000}]);
+  const owner=randomUUID();
+  expect(await submit('owner',220000,owner)).toEqual({status:'confirm',available:'210000',excess:'10000'});
+  expect(await submit('owner',220000,owner,210000)).toEqual({status:'saved',id:owner});
+  expect((await report()).recipients[2]).toMatchObject({paid:'210000',remaining:'0'});
+  const result=await history();
+  expect(result.count).toBe(5);
+  expect(result.history).toEqual(expect.arrayContaining([
+   expect.objectContaining({id:owner,amount:'220000',excess:'10000'}),
+   expect.objectContaining({id:excess,amount:'25000',excess:'10000'}),
+  ]));
+  expect(await overview()).toMatchObject({cash:before.cash-260000,net:before.net});
+  const backdated=randomUUID();
+  expect(await submit(member,100,backdated,null,sample.prior)).toEqual({status:'confirm',available:'0',excess:'100'});
+  expect(await submit(member,100,backdated,0,sample.prior)).toEqual({status:'saved',id:backdated});
+  expect((await report()).recipients[0]).toMatchObject({paid:'45000',remaining:'0'});
+ } finally {await db.close();}
+});
 
 describe('simplified monthly payouts',()=>{
  let db:PGlite;

@@ -128,12 +128,10 @@
 .finance-payout-period .finance-date-form{flex:0 1 auto;align-items:end;padding:0}
 .finance-payout-card>header{display:flex;align-items:start;justify-content:space-between;gap:.5rem;margin-bottom:.55rem}
 .finance-payout-card dt{line-height:1.35}
-.finance-payout-card .finance-payout-form{display:block;margin-top:.7rem}
-.finance-payout-form>.finance-button,.finance-payout-form .primary{min-height:44px}
-.finance-payout-form>.finance-button{width:100%}
-.finance-payout-form .finance-error{color:var(--fin-danger);font-weight:500}
-.finance-payout-form details>label{margin-top:.55rem}
-.finance-payout-form summary,.finance-payout-advanced>summary{padding:.35rem 0;color:var(--fin-accent);cursor:pointer}
+.finance-manual-payout .primary,.finance-manual-payout :is(input,select){min-height:44px}
+.finance-payout-warning{border:1px solid var(--fin-line);border-inline-start:3px solid var(--fin-danger);border-radius:.55rem;background:var(--fin-bg);padding:.7rem;overflow-wrap:anywhere}
+.finance-payout-warning p{margin-top:.25rem}
+.finance-payout-advanced>summary{padding:.35rem 0;color:var(--fin-accent);cursor:pointer}
 .finance-payout-advanced[open]>summary{margin-bottom:.55rem}
 .finance-payout-advanced>.finance-register{margin-top:.6rem}
 .finance-payout-history{padding:0;list-style:none}

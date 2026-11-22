@@ -28,26 +28,31 @@ export async function loadQuickEntry(type:QuickType,thai:boolean):Promise<{form?
  }
 }
 
-const monthPayout=z.object({
- key:z.uuid(),month:day,recipient:z.union([z.literal('owner'),z.uuid()]),date:day,
- amount:money.refine(value=>Number(value)>0),account:z.union([z.literal(''),z.uuid()]),notes:z.string().trim().max(1000),
+const manualPayout=z.object({
+ key:z.uuid(),recipient:z.union([z.literal('owner'),z.uuid()]),date:day,
+ amount:money.refine(value=>Number(value)>0),confirm:z.string().regex(/^\d{1,11}$/).optional(),
 });
-export async function recordMonthPayout(input:unknown) {
+export async function recordManualPayout(input:unknown):Promise<
+ {status:'saved'}|{status:'confirm';available:string;excess:string}|{status:'error';error:string}
+> {
  const context=await authorization();
- if(!context)return {error:'authorization'};
- const parsed=monthPayout.safeParse(input);
- if(!parsed.success)return {error:'invalid'};
- const {key,month,recipient,date,amount,account,notes}=parsed.data;
- const {error}=await context.db.rpc('finance_record_month_payout' as never,{
-  p_key:key,p_month:month,p_recipient:recipient,p_day:date,p_amount:amount,p_account:account||null,p_notes:notes||null,
+ if(!context)return {status:'error',error:'authorization'};
+ const parsed=manualPayout.safeParse(input);
+ if(!parsed.success)return {status:'error',error:'invalid'};
+ const {key,recipient,date,amount,confirm}=parsed.data;
+ const {data,error}=await context.db.rpc('finance_record_manual_payout' as never,{
+  p_key:key,p_recipient:recipient,p_day:date,p_amount:amount,p_confirm_limit:confirm??null,
  } as never);
  if(error){
-  if(error.code==='P0001'&&error.message.startsWith('payout:'))return {error:error.message.slice(7)};
-  console.error('Monthly payout failed',{code:error.code});
-  return {error:'retry'};
+  if(error.code==='P0001'&&error.message.startsWith('payout:'))return {status:'error',error:error.message.slice(7)};
+  console.error('Manual payout failed',{code:error.code});
+  return {status:'error',error:'retry'};
  }
+ const result=data as unknown as {status:string;available:string;excess:string}|null;
+ if(result?.status==='confirm')return {status:'confirm',available:result.available,excess:result.excess};
+ if(result?.status!=='saved')return {status:'error',error:'retry'};
  revalidatePath('/finance');
- return {saved:true};
+ return {status:'saved'};
 }
 
 export async function submitFinance(action: string, requestKey: string, values: unknown) {
