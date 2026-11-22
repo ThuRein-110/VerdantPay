@@ -9,6 +9,10 @@ import {Entry,QuickCalculator} from './entry';
 import {AnalyticsCharts,Graphs} from './graphs';
 import {reports} from './reports';
 import {FinanceChrome,FinancePreferences} from './chrome';
+import {EmailSettings} from './email/settings';
+import {MembershipPanel,type MembershipList} from './access-panel';
+import {financeOwner} from './membership';
+import {FinanceSignOut} from './login/screen';
 import {GoalPreview,Goals} from './goals';
 import {Balance,DashboardActions,RecentTransactions,TeamCards,financeUrl} from './panels';
 import {financeAnalytics,financeInvestments,financeTeam} from './analytics';
@@ -18,6 +22,13 @@ import './finance.css';
 export const dynamic='force-dynamic';
 export const metadata={title:'Finance | 3D Printing MFU By Memo',robots:{index:false,follow:false}};
 type Query = Record<string,string|string[]|undefined>;
+async function OwnerSettings({thai,page}:{thai:boolean;page:number}) {
+ const owner=await financeOwner();
+ if(!owner)return null;
+ const {data,error}=await owner.db.rpc('finance_membership_admin' as never,{p_offset:(page-1)*25} as never);
+ if(error)return <p role="alert">{thai?'โหลดรายการอนุมัติไม่ได้':'Account approvals could not be loaded.'}</p>;
+ return <MembershipPanel thai={thai} page={page} data={data as unknown as MembershipList}/>;
+}
 const metrics = [
  ['revenue','Recognized revenue','รายได้ที่รับรู้'],['operating','Operating expenses','ค่าใช้จ่ายดำเนินงาน'],
  ['gross','Gross profit','กำไรขั้นต้น'],['net','Net profit before team shares','กำไรสุทธิก่อนแบ่งทีม'],
@@ -215,7 +226,9 @@ export default async function FinancePage({searchParams}:{searchParams:Promise<Q
     <nav className="finance-module-links" aria-label={l('Financial registers','ทะเบียนการเงิน')}>{(['orders','income','expenses','investments','cash','inventory','calculator'] as const).map(key=><Link className="finance-button" key={key} href={financeUrl(key,dates)}>{localized(l,sections[key])}</Link>)}</nav>
    </>}
    {team&&<TeamCards members={team} l={l} thai={thai} dates={dates}/>}
-   {section==='settings'&&<><FinancePreferences thai={thai}/><nav className="finance-module-links" aria-label={l('Finance shortcuts','ทางลัดการเงิน')}>
+   {section==='settings'&&<><FinancePreferences thai={thai}/>
+    <OwnerSettings thai={thai} page={typeof query.membersPage==='string'&&/^\d{1,4}$/.test(query.membersPage)?Math.max(1,Number(query.membersPage)):1}/>
+    <EmailSettings thai={thai}/><FinanceSignOut thai={thai}/><nav className="finance-module-links" aria-label={l('Finance shortcuts','ทางลัดการเงิน')}>
     <Link className="finance-button" href={financeUrl('team',dates)}>{l('Team shares','ส่วนแบ่งทีม')}</Link>
     <Link className="finance-button" href={financeUrl('records',dates)}>{l('Financial records','รายการการเงิน')}</Link>
     <Link className="finance-button" href="/dashboard">{l('Admin workspace','พื้นที่ผู้ดูแล')}</Link>

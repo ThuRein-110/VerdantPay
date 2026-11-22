@@ -6,6 +6,7 @@ enabled = true
 sql_paths = ["./seed/defaults.sql"]
 [auth]
 site_url = "http://localhost:3000"
+additional_redirect_urls = ["http://localhost:3001/finance/auth/callback", "http://127.0.0.1:3001/finance/auth/callback"]
 enable_signup = true
 [auth.email]
 enable_signup = true
@@ -13,3 +14,6 @@ enable_confirmations = true
 [auth.mfa.totp]
 enroll_enabled = true
 verify_enabled = true
+
+[functions.finance-email]
+verify_jwt = false

@@ -103,6 +103,12 @@ it('reconciles ฿10,000 revenue and ฿4,000 expenses through the monthly close
   await financeWrite(db,'payment',{day,target:order,account:ids.bank,kind:'receipt',amount:1000000});
   await financeWrite(db,'recognize',{day,target:order});
   await financeWrite(db,'expense',{day,category:ids.expense,description:'Operating costs',amount:400000,account:ids.bank});
+  await db.exec('reset role');
+  const {rows:[{draft}]}=await db.query<{draft:unknown}>(
+   "select public.finance_email_snapshot($1,'2026-02-01',true) draft",[day]);
+  expect(draft).toMatchObject({income:'1000000',expenses:'400000',profit:'600000',allocation_status:'estimated',
+   shares:[{amount:'90000'},{amount:'90000'},{owner:true,amount:'420000'}]});
+  await identity(db);
   await financeWrite(db,'close',{day});
   const {rows:[{stats}]}=await db.query<{stats:Record<string,number>}>(
    'select public.finance_overview($1,$2) stats',[day,'2026-01-31']);

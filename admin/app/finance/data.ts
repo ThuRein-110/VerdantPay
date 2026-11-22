@@ -1,15 +1,16 @@
 import 'server-only';
 import {cache} from 'react';
-import {requireAdmin} from '@mfu/database';
 import {redirect} from 'next/navigation';
 import type {Filters} from './model';
+import {financeAccess,financeDestination} from './membership';
 
 export const authorization = cache(async () => {
- try { return await requireAdmin(); } catch { return null; }
+ const access=await financeAccess();
+ return access?.mfa&&(access.role==='owner'||access.role==='admin')?access:null;
 });
 export async function financeAdmin() {
  const result = await authorization();
- if(!result) redirect('/finance/login');
+ if(!result) redirect(financeDestination(await financeAccess()));
  return result.db;
 }
 export type Row = Record<string, string | number | boolean | null>;

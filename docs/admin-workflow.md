@@ -2,7 +2,19 @@
 
 ## Memo Finance
 
-Open **Finance** from the admin navigation or visit `/finance` on the admin deployment. The finance sign-in screen uses the existing administrator role and verified TOTP session. On mobile, **Records** on the dashboard opens transaction history and the financial registers. The centered plus opens the entry sheet. **Appearance** under Settings lets you restore the system theme or switch between English and Thai.
+Open **Finance** from the admin navigation or visit `/finance` on the admin deployment. New users select **Create account**, confirm their email in the same browser, and wait on **Pending approval**. From **Settings → Account approvals**, the owner can assign Finance admin, link a Team member to an existing profit-share member, or revoke access. Approved users complete authenticator verification. Team accounts can see their linked allocations and payment history. For lost passwords, open **Forgot password** and follow the emailed link in the same browser.
+
+On mobile, **Records** on the dashboard opens transaction history and the financial registers. The centered plus opens the entry sheet. **Appearance** under Settings lets you restore the system theme or switch between English and Thai. The light and dark theme toggle is also available on the account screens.
+
+### Email notifications
+
+After the sender and recipient are approved and the schedule is active, open **Settings → Email Notifications**. Enter the approved address, request a verification code, paste the code from your inbox, and select **Verify address**. Select any combination of income receipts, expenses, investments, team payouts, and the four summaries. Check **Enable email delivery to my verified address**, then save. **Send Test Email** queues a nonfinancial test. The history lists the latest 30 messages and any delivery or quota errors. **Sent** indicates acceptance by Resend.
+
+The daily summary covers yesterday. The weekly summary covers the previous Monday through Sunday. The monthly and yearly reports cover the previous calendar month and year. Reports use Asia/Bangkok and are queued on their first reporting day from 08:00. A monthly report uses the recorded close when available and a labeled estimate based on the effective profit-sharing agreement otherwise. Income notifications follow customer receipts, and profit summaries use recognized income. Investment notifications cover capital contributions and asset purchases.
+
+### Future Gmail import
+
+An import feature would ask each administrator to opt in through their own Google OAuth consent flow. It would use a read-only scope, restrict candidates to an administrator-selected label or query, and keep refresh tokens encrypted on the server. It would deduplicate by Gmail message ID, extract draft records, and require an administrator to review them before posting. Revocation would stop sync and delete its stored authorization. Delivery to a Gmail address requires no Gmail OAuth access.
 
 - Create the invoice in **Records → Orders** before recording a receipt. Deposits and refunds post to the payment account. Use **Recognize revenue** on the order when the work is complete.
 - Record inventory purchases in **Filament inventory**, and enter equipment in **Investments**. Finalize print jobs against their actual spools in the **Print cost calculator**. A job reversal restores the stock and leaves an audit entry.
@@ -10,7 +22,9 @@ Open **Finance** from the admin navigation or visit `/finance` on the admin depl
 - Use **Reports** for Excel and CSV downloads. Profit reports use the recognized revenue and booked costs. Transaction records show cash movement, including transfers and capital. Excel downloads are capped at 5,000 rows per sheet.
 - Use **Goals** to track a savings target and manually update the amount set aside. Goal updates leave cash, revenue, expenses, and team allocations alone.
 
-For a local browser check with isolated synthetic data, run `pnpm --filter @mfu/admin build`, then `pnpm exec playwright test --config tests/finance-browser/playwright.config.ts`. The fixture runs the PostgreSQL migrations in memory and writes screenshots to `test-results/finance-preview/`. It uses synthetic Auth sessions and never connects to a hosted database.
+For a local browser check with isolated synthetic data, run `pnpm --filter @mfu/admin build`, then `pnpm exec playwright test --config tests/finance-browser/playwright.config.ts`. The fixture runs the PostgreSQL migrations in memory and simulates Auth and its mailbox over loopback. Screenshots are available in `test-results/finance-preview/`.
+
+## Printing administration
 
 Create the initial account and role out of band using the Supabase setup guide. Sign in, enroll TOTP if necessary, and complete MFA. All data routes verify role and AAL2 again.
 

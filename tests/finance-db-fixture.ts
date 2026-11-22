@@ -5,19 +5,26 @@ import {randomUUID} from 'node:crypto';
 export const admin='33333333-3333-4333-8333-333333333333';
 export const customer='44444444-4444-4444-8444-444444444444';
 export const session='55555555-5555-4555-8555-555555555555';
+export const applicant='66666666-6666-4666-8666-666666666666';
+export const applicantSession='77777777-7777-4777-8777-777777777777';
 
 export async function financeDatabase() {
  const db=new PGlite();
  await db.exec(`create role anon;create role authenticated;create role service_role bypassrls;create schema auth;create schema storage;
- create table auth.users(id uuid primary key);
+ create table auth.users(id uuid primary key,email text,email_confirmed_at timestamptz);
  create table auth.sessions(id uuid primary key,user_id uuid references auth.users,not_after timestamptz);
  create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint);
  create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;
  create function auth.jwt() returns jsonb language sql stable as $$select coalesce(nullif(current_setting('request.jwt.claims',true),''),'{}')::jsonb$$;
  grant usage on schema public,auth to anon,authenticated,service_role;grant execute on all functions in schema auth to anon,authenticated,service_role;`);
- for(const file of readdirSync('supabase/migrations').sort())await db.exec(readFileSync('supabase/migrations/'+file,'utf8').replace('create extension if not exists pgcrypto;',''));
- await db.exec(`insert into auth.users values('${admin}'),('${customer}');insert into public.roles values('${admin}','admin');
- insert into auth.sessions(id,user_id) values('${session}','${admin}');`);
+ for(const file of readdirSync('supabase/migrations').sort()){
+  if(file.startsWith('202611220026')){
+   await db.exec(`insert into auth.users values('${admin}','admin@example.test',now()),('${customer}','customer@example.test',now()),
+   ('${applicant}','applicant@example.test',null);insert into public.roles values('${admin}','admin');
+   insert into auth.sessions(id,user_id) values('${session}','${admin}'),('${applicantSession}','${applicant}');`);
+  }
+  await db.exec(readFileSync('supabase/migrations/'+file,'utf8').replace('create extension if not exists pgcrypto;',''));
+ }
  return db;
 }
 export async function identity(db:PGlite,user=admin,aal='aal2') {

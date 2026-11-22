@@ -25,7 +25,7 @@ export async function requireUser(allowMfaChallenge=false) {
  if(active.error||!active.data)throw new Error('Authentication required');
  // getUser provides fresh factors; the cookie's cached user can predate enrollment.
  if(!allowMfaChallenge&&data.user.factors?.some(f=>f.status==='verified')&&claims.data?.claims.aal!=='aal2')throw new Error('Authentication required: MFA verification');
- return {db,user:data.user};
+ return {db,user:data.user,claims:claims.data!.claims};
 }
 export async function requireAdmin() {
  const ctx=await requireUser();const {data,error}=await ctx.db.rpc('is_admin');

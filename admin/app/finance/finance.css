@@ -177,6 +177,15 @@
 .finance-fab{width:50px;height:50px;display:grid;place-items:center;justify-self:center;transform:translateY(-10px);
  border:3px solid var(--fin-panel);border-radius:.98rem;background:var(--fin-solid);color:var(--fin-on-solid);box-shadow:0 4px 12px #092c213a}
 .finance-goal-section,.finance-goal-grid{display:grid;gap:.65rem}
+.finance-email form{border-bottom:1px solid var(--fin-line);margin-bottom:.65rem}
+.finance-email label:has(input[type=email]),.finance-email label:has(input[type=text]),.finance-email label:has(input[name=code]){max-width:26rem}
+.finance-email .finance-email-check{display:flex;flex-direction:row;align-items:center;gap:.55rem;min-height:34px}
+.finance-email input[type=checkbox]{width:17px;height:17px;min-height:17px;padding:0;accent-color:var(--fin-accent)}
+.finance-email .finance-email-options{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:0 .75rem;border:1px solid var(--fin-line);border-radius:.75rem;padding:.45rem .65rem}
+.finance-email .finance-email-options legend{color:var(--fin-muted);font-weight:700;padding:0 .25rem}
+.finance-email-history{list-style:none;padding:0}
+.finance-email-history li{border-bottom:1px solid var(--fin-line);display:flex;justify-content:space-between;align-items:center;gap:.55rem;padding:.55rem 0}
+.finance-email-history small{display:block;color:var(--fin-muted);overflow-wrap:anywhere}
 .finance-goal-section .finance-section-head a{color:var(--fin-accent);font-size:.875rem;font-weight:700;padding:.45rem 0}
 .finance-goal-card{display:grid;gap:.62rem}
 .finance-goal-card header{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:.62rem}
@@ -204,6 +213,14 @@
 .finance-login form{display:grid;gap:.9rem}
 .finance-login .button{background:var(--fin-solid);border-color:var(--fin-solid);color:var(--fin-on-solid);border-radius:.78rem}
 .finance-login .fine{color:var(--fin-muted);font-size:.8rem;margin:.9rem 0 0}
+.finance-login .finance-auth-message{margin:0 0 .85rem;font-size:.9rem;overflow-wrap:anywhere}
+.finance-login .finance-submit,.finance-login .finance-edit-link{margin-top:.85rem}
+.finance-auth-links{display:flex;justify-content:space-between;flex-wrap:wrap;gap:.65rem;margin-top:1rem}
+.finance-auth-links a,.finance-login .finance-edit-link{color:var(--fin-accent);font-weight:700;font-size:.88rem}
+.finance-auth-password{position:relative}
+.finance-auth-password input{padding-inline-end:3.45rem}
+.finance-auth-password button{position:absolute;inset:auto .26rem .24rem auto;width:36px;height:36px;border-color:transparent}
+.finance-access-item{border-bottom:1px solid var(--fin-line);overflow-wrap:anywhere}
 .finance-sheet{position:fixed;inset:auto 0 0;width:100%;max-width:none;min-width:0;max-height:min(89dvh,750px);margin:0;padding:0;border:1px solid var(--fin-line);border-radius:1.42rem 1.42rem 0 0;background:var(--fin-panel);color:var(--fin-ink);overflow:auto;overscroll-behavior:contain}
 .finance-sheet::backdrop{background:#081a14a8}
 body:has(.finance-sheet[open]){overflow:hidden}

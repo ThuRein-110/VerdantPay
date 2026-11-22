@@ -1,6 +1,7 @@
 import {createServer,type IncomingMessage,type ServerResponse} from 'node:http';
-import {financeDatabase,financeSeed,identity} from '../finance-db-fixture';
-import {actors,backend,previewActor,previewService,previewUser} from './preview-auth';
+import {createHash,randomUUID} from 'node:crypto';
+import {admin,applicant,financeDatabase,financeSeed,identity} from '../finance-db-fixture';
+import {actors,backend,factor,frontend,previewActor,previewService,previewSession,previewUser} from './preview-auth';
 
 const identifier=(value:string)=>{
  if(!/^[a-z_]+$/.test(value))throw Error('Unsupported fixture identifier');
@@ -10,7 +11,13 @@ const identifier=(value:string)=>{
 async function start() {
  const db=await financeDatabase();
  const sample=await financeSeed(db);
+ await db.exec(`reset role;update public.finance_memberships set role='owner' where user_id='${admin}'`);
  let queue=Promise.resolve();
+ let passwordHash='';
+ let confirmed=false;
+ const codes=new Map<string,{challenge:string;kind:'signup'|'recovery'}>();
+ const mailbox=new Map<string,string>();
+ const hash=(value:string)=>createHash('sha256').update(value).digest('base64url');
  const respond=(res:ServerResponse,body:unknown,status=200)=>{
   res.writeHead(status,{'content-type':'application/json'});
   res.end(JSON.stringify(body));
@@ -24,20 +31,83 @@ async function start() {
   const actor=previewActor(token);
   const path=url.pathname;
   if(path==='/health'){respond(res,{ready:true,today:sample.today});return;}
-  if(path==='/auth/v1/user'){
-   if(actor)respond(res,previewUser(actor));
-   else respond(res,{message:'No session'},401);
-   return;
-  }
   const run=async()=>{
    try {
+    const authError=(code:string,status=400)=>respond(res,{code,message:code},status);
+    const sendLink=(kind:'signup'|'recovery')=>{
+     const redirect=new URL(url.searchParams.get('redirect_to')??'');
+     if(redirect.href!==frontend+'/finance/auth/callback')throw Error('Unexpected redirect');
+     const code=randomUUID();
+     codes.set(code,{challenge:body.code_challenge,kind});
+     redirect.searchParams.set('code',code);
+     mailbox.set(kind,redirect.href);
+    };
+    if(path==='/mailbox')return respond(res,{link:mailbox.get(url.searchParams.get('kind')??'')});
+    if(path==='/auth/v1/signup'){
+     if(passwordHash)return authError('user_already_exists',422);
+     if(body.email!==actors.applicant.email)return authError('unexpected_fixture_email');
+     sendLink('signup');
+     passwordHash=hash(body.password);
+     return respond(res,{...previewUser('applicant'),email_confirmed_at:null,factors:[]});
+    }
+    if(path==='/auth/v1/recover'){
+     if(confirmed&&body.email===actors.applicant.email)sendLink('recovery');
+     return respond(res,{});
+    }
+    if(path==='/auth/v1/token'){
+     if(url.searchParams.get('grant_type')==='password'){
+      if(body.email===actors.admin.email&&body.password==='synthetic-password')return respond(res,previewSession('unverified'));
+      if(confirmed&&body.email===actors.applicant.email&&hash(body.password)===passwordHash)return respond(res,previewSession('applicant'));
+      return authError('invalid_credentials');
+     }
+     const saved=codes.get(body.auth_code);
+     if(!saved||typeof body.code_verifier!=='string'||hash(body.code_verifier)!==saved.challenge)return authError('bad_code_verifier');
+     codes.delete(body.auth_code);
+     if(saved.kind==='signup'){
+      await db.exec(`reset role;update auth.users set email_confirmed_at=now() where id='${applicant}'`);
+      confirmed=true;
+     }
+     return respond(res,previewSession('applicant'));
+    }
+    if(path==='/auth/v1/user'){
+     if(!actor)return authError('session_not_found',401);
+     if(req.method==='PUT'&&actor==='applicant')passwordHash=hash(body.password);
+     return respond(res,previewUser(actor));
+    }
+    if(path==='/auth/v1/logout'){res.writeHead(204);res.end();return;}
+    if(actor&&path==='/auth/v1/factors/'+factor+'/challenge')return respond(res,{id:randomUUID()});
+    if(actor&&path==='/auth/v1/factors/'+factor+'/verify'){
+     if(body.code!=='123456')return authError('mfa_verification_failed');
+     return respond(res,previewSession(actors[actor].id===applicant?'team':'admin'));
+    }
+    if(path==='/rest/v1/rpc/take_rate_limit'&&token===previewService)return respond(res,true);
     if(path==='/rest/v1/rpc/customer_session_active'&&token===previewService){
      await db.exec('reset role;set role service_role');
      return respond(res,(await db.query<{value:boolean}>('select public.customer_session_active($1,$2) value',[body.p_session,body.p_owner])).rows[0].value);
     }
+    if(path==='/rest/v1/rpc/finance_email_request'&&token===previewService){
+     await db.exec('reset role;set role service_role');
+     const code='0123456789abcdef01234567';
+     const hash=createHash('sha256').update(code).digest('hex');
+     return respond(res,(await db.query<{value:boolean}>('select public.finance_email_request($1,$2,$3) value',[body.p_email,code,hash])).rows[0].value);
+    }
     if(!actor)return respond(res,{message:'No session'},401);
     await identity(db,actors[actor].id,actors[actor].aal);
     if(path==='/rest/v1/rpc/is_admin')return respond(res,(await db.query<{value:boolean}>('select public.is_admin() value')).rows[0].value);
+    const membershipRpc:Record<string,unknown[]>={
+     finance_access_role:[],finance_request_access:[body.p_name],finance_membership_admin:[body.p_offset],
+     finance_set_membership:[body.p_user,body.p_role,body.p_member],finance_my_allocations:[],
+    };
+    const rpc=path.split('/').at(-1)??'';
+    const parameters=membershipRpc[rpc];
+    if(Object.hasOwn(membershipRpc,rpc)){
+     const sql='select public.'+identifier(rpc)+'('+parameters.map((_,index)=>'$'+(index+1)).join(',')+') value';
+     return respond(res,(await db.query<{value:unknown}>(sql,parameters)).rows[0].value);
+    }
+    if(path==='/rest/v1/rpc/finance_email_status')return respond(res,(await db.query<{value:unknown}>('select public.finance_email_status() value')).rows[0].value);
+    if(path==='/rest/v1/rpc/finance_email_verify')return respond(res,(await db.query<{value:boolean}>('select public.finance_email_verify($1) value',[body.p_hash])).rows[0].value);
+    if(path==='/rest/v1/rpc/finance_email_save')return respond(res,(await db.query<{value:boolean}>('select public.finance_email_save($1,$2::text[]) value',[body.p_enabled,body.p_kinds])).rows[0].value);
+    if(path==='/rest/v1/rpc/finance_email_test')return respond(res,(await db.query<{value:boolean}>('select public.finance_email_test() value')).rows[0].value);
     if(path==='/rest/v1/rpc/finance_overview')return respond(res,(await db.query<{value:unknown}>(
      'select public.finance_overview($1,$2) value',[body.p_from,body.p_to])).rows[0].value);
     if(path==='/rest/v1/rpc/finance_write')return respond(res,(await db.query<{value:string}>(
