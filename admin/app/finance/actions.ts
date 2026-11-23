@@ -2,37 +2,57 @@
 
 import {revalidatePath} from 'next/cache';
 import {z} from 'zod';
-import {authorization,rows} from './data';
-import {bangkokToday,thb,validateSubmission} from './model';
-import {definitions,type Lookups} from './forms';
+import {authorization} from './data';
+import {bangkokToday,day,money,validateSubmission} from './model';
+import {definitions,type Form,type Lookups} from './forms';
 import {financeLookups} from './lookups';
 import {quickTypes,type QuickType} from './quick-types';
 
 const quickLookups:Record<QuickType,(keyof Lookups)[]>={
- income:['accounts','orders'],expense:['accounts','expenses','orders'],investment:['accounts','assets'],payout:['accounts'],
+ income:['accounts','sales'],expense:['accounts','expenses','orders'],investment:['accounts','assets'],payout:['accounts'],
 };
 
-export async function loadQuickEntry(type:QuickType,thai:boolean) {
+export async function loadQuickEntry(type:QuickType,thai:boolean):Promise<{form?:Form;error?:string;href?:string}> {
  const context=await authorization();
  if(!context||!Object.hasOwn(quickTypes,type)) return {error:thai?'กรุณาเข้าสู่ระบบผู้ดูแล':'Administrator sign-in is required.'};
  const l=(en:string,th:string)=>thai?th:en;
  try {
-  const [lists,allocations]=await Promise.all([
-   financeLookups(context.db,quickLookups[type]),
-   type==='payout'?rows(context.db,'finance_payout_summary',{sort:'month',size:1000}):null,
-  ]);
-  const {sectionForms,rowForms}=definitions(l,lists,bangkokToday());
+  if(type==='payout') return {href:'/finance?section=team'};
+  const lists=await financeLookups(context.db,quickLookups[type]);
+  const {sectionForms}=definitions(l,lists,bangkokToday());
   if(type==='income') return {form:sectionForms.income?.[0]};
   if(type==='expense') return {form:sectionForms.expenses?.[0]};
-  if(type==='investment') return {form:sectionForms.investments?.[0]};
-  const eligible=allocations?.data.filter(row=>row.member_id&&Number(row.remaining_satang)>0)??[];
-  const base=eligible.length?rowForms.allocations(eligible[0])[0]:null;
-  if(!base) return {message:l('There are no unpaid team allocations.','ไม่มีส่วนแบ่งทีมค้างจ่าย')};
-  return {form:{...base,fields:[{key:'target',label:l('Team allocation','รายการส่วนแบ่ง'),type:'select' as const,
-   list:eligible.map(row=>({value:String(row.id),label:row.name_snapshot+' · '+row.month+' · '+thb(row.remaining_satang,thai?'th':'en')}))},...base.fields]}};
+  return {form:sectionForms.investments?.[0]};
  } catch {
   return {error:l('Could not load the record form. Try again.','โหลดแบบฟอร์มไม่ได้ กรุณาลองใหม่')};
  }
+}
+
+const manualPayout=z.object({
+ key:z.uuid(),recipient:z.union([z.literal('owner'),z.uuid()]),date:day,
+ amount:money.refine(value=>Number(value)>0),confirm:z.string().regex(/^\d{1,11}$/).optional(),
+});
+export async function recordManualPayout(input:unknown):Promise<
+ {status:'saved'}|{status:'confirm';available:string;excess:string}|{status:'error';error:string}
+> {
+ const context=await authorization();
+ if(!context)return {status:'error',error:'authorization'};
+ const parsed=manualPayout.safeParse(input);
+ if(!parsed.success)return {status:'error',error:'invalid'};
+ const {key,recipient,date,amount,confirm}=parsed.data;
+ const {data,error}=await context.db.rpc('finance_record_manual_payout' as never,{
+  p_key:key,p_recipient:recipient,p_day:date,p_amount:amount,p_confirm_limit:confirm??null,
+ } as never);
+ if(error){
+  if(error.code==='P0001'&&error.message.startsWith('payout:'))return {status:'error',error:error.message.slice(7)};
+  console.error('Manual payout failed',{code:error.code});
+  return {status:'error',error:'retry'};
+ }
+ const result=data as unknown as {status:string;available:string;excess:string}|null;
+ if(result?.status==='confirm')return {status:'confirm',available:result.available,excess:result.excess};
+ if(result?.status!=='saved')return {status:'error',error:'retry'};
+ revalidatePath('/finance');
+ return {status:'saved'};
 }
 
 export async function submitFinance(action: string, requestKey: string, values: unknown) {
@@ -41,7 +61,9 @@ export async function submitFinance(action: string, requestKey: string, values: 
  try {
   const key = z.uuid().parse(requestKey);
   const data = validateSubmission(action,values);
-  const {error} = await context.db.rpc('finance_write' as never,{p_action:action,p_key:key,p_data:data} as never);
+  const {error} = action==='manual_income'
+   ?await context.db.rpc('finance_record_income' as never,{p_key:key,p_data:data} as never)
+   :await context.db.rpc('finance_write' as never,{p_action:action,p_key:key,p_data:data} as never);
   if(error) {
    if(error.code==='P0001') return {error:error.message};
    if(error.code==='23505') return {error:'A matching record already exists.'};

@@ -6,16 +6,19 @@
     "dev": "next dev --port 3001",
     "build": "next build",
     "start": "next start --port 3001",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "next typegen && tsc --noEmit",
+    "dev:vinext": "vite dev --port 3001",
+    "build:vinext": "vite build",
+    "start:vinext": "vite preview",
+    "deploy:vinext": "vinext-cloudflare deploy",
+    "deploy:workers": "cf deploy --prebuilt --mode production --no-provision",
+    "preview:workers": "cf previews deploy --mode production"
   },
   "dependencies": {
     "@mfu/database": "workspace:*",
-    "@mfu/pricing": "workspace:*",
-    "@mfu/three": "workspace:*",
-    "@mfu/types": "workspace:*",
     "@mfu/ui": "workspace:*",
-    "@mfu/validation": "workspace:*",
     "@tailwindcss/postcss": "^4.1.18",
+    "@vinext/cloudflare": "^1.4.0",
     "chart.js": "^4.6.1",
     "csv-stringify": "^6.9.0",
     "decimal.js": "^10.6.0",
@@ -24,7 +27,17 @@
     "next": "16.4.5",
     "react": "19.3.1",
     "react-dom": "19.3.1",
+    "react-server-dom-webpack": "^19.3.1",
     "tailwindcss": "^4.1.18",
+    "vinext": "^1.4.6",
     "zod": "^4.3.0"
+  },
+  "type": "module",
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "2.0.0-rc.3",
+    "@vitejs/plugin-react": "^6.3.0",
+    "@vitejs/plugin-rsc": "^0.5.39",
+    "cf": "1.0.0-rc.2",
+    "vite": "8.3.3"
   }
 }

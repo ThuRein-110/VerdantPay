@@ -1,10 +1,10 @@
 import {session} from '@mfu/database';
 import {csrf} from '@mfu/database/csrf.ts';
 import {readLimited} from '@mfu/database/limits.ts';
-import {customerRate} from '@mfu/database/customer-security.ts';
 import {financeAccess,financeDestination,isApproved} from '../membership';
 import {authInput} from './input';
 import {canRecover,clearRecovery,financeCallback,rememberFinanceFlow} from './flow';
+import {financeNetwork,rateAllowed} from './rate';
 
 function reply(data:Record<string,unknown>,status=200) {
  return Response.json(data,{status,headers:{'Cache-Control':'private, no-store'}});
@@ -21,12 +21,9 @@ export async function POST(request:Request) {
  const p=input.data;
  try {
   if(p.action!=='logout'){
-   const network=(request.headers.get('x-vercel-forwarded-for')??'unknown').split(',')[0].trim();
-   try {
-    await customerRate(request,'finance-network:'+network,30,900);
-    if('email' in p&&['signup','forgot'].includes(p.action))
-     await customerRate(request,'finance-mail:'+p.email,4,3600);
-   } catch {return fail('rate',429);}
+   const network=financeNetwork(request.headers);
+   if(!await rateAllowed('network:'+network,30,900))return fail('rate',429);
+   if('email' in p&&['signup','forgot'].includes(p.action)&&!await rateAllowed('mail:'+p.email,4,3600))return fail('rate',429);
   }
   const db=await session();
   if(p.action==='logout'){

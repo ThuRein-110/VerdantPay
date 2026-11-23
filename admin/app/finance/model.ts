@@ -5,7 +5,7 @@ export const sections = {
  overview: ['Overview', 'ภาพรวม'], records: ['Records','รายการ'], orders: ['Orders', 'คำสั่งซื้อ'], income: ['Income', 'รายรับ'],
  expenses: ['Expenses', 'ค่าใช้จ่าย'], inventory: ['Filament inventory', 'คลังเส้นพิมพ์'],
  calculator: ['Print cost calculator', 'คำนวณต้นทุนพิมพ์'], profit: ['Profit & loss', 'กำไรและขาดทุน'],
- team: ['Team shares', 'ส่วนแบ่งทีม'], investments: ['Investments', 'เงินลงทุน'],
+ team: ['Team Payouts', 'จ่ายส่วนแบ่งทีม'], shares: ['Profit Sharing', 'การแบ่งกำไร'], investments: ['Investments', 'เงินลงทุน'],
  cash: ['Cash flow', 'กระแสเงินสด'], reports: ['Reports', 'รายงาน'], goals: ['Business goals','เป้าหมายธุรกิจ'], settings: ['Settings', 'การตั้งค่า'],
 } as const;
 export type Section = keyof typeof sections;
@@ -52,6 +52,7 @@ export function calculate(input: CostInput) {
 const dateTarget = {day, target:uuid, notes};
 const expenseFields = {category:uuid, description:label, vendor:notes, amount:money, account:optUuid, eligible:optBool};
 const schemas = {
+ manual_income:z.object({day,category:uuid,account:uuid,description:label,amount:money.refine(value=>Number(value)>0),notes}),
  order: z.object({day, reference:label.max(100), customer:label, contact:notes, notes, target:optUuid, lines:z.array(line).min(1).max(25)}),
  recognize:z.object(dateTarget), cancel:z.object(dateTarget),
  payment:z.object({...dateTarget, account:uuid, amount:money, kind:z.enum(['receipt','refund'])}),
@@ -109,3 +110,13 @@ export const thb = (satang: unknown, locale = 'en') => {
  return new Intl.NumberFormat(locale,{style:'currency',currency:'THB',minimumFractionDigits:2}).format(Number(satang)/100);
 };
 export const baht = (satang: unknown) => typeof satang==='number' || typeof satang==='string' ? new Money(satang).div(100).toFixed(2) : '';
+
+export function payoutName(name:string,thai:boolean) {
+ if(!thai)return name;
+ switch(name){
+  case 'Team Member 1':return 'สมาชิกทีม 1';
+  case 'Team Member 2':return 'สมาชิกทีม 2';
+  case 'Owner':return 'เจ้าของ';
+  default:return name;
+ }
+}

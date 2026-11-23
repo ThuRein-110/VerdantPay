@@ -1,4 +1,4 @@
-name: Validate both applications
+name: Validate VerdantPay
 on: [push, pull_request]
 permissions:
   contents: read
@@ -20,8 +20,7 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm security
-      - run: pnpm exec turbo build --filter=@mfu/users
-      - run: pnpm exec turbo build --filter=@mfu/admin
+      - run: pnpm build
       - run: pnpm exec playwright install --with-deps chromium
         timeout-minutes: 5
       - run: pnpm test:e2e

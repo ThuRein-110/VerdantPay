@@ -2,9 +2,8 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import {useRouter} from 'next/navigation';
 import {createContext,Fragment,useContext,useEffect,useRef,useState,useSyncExternalStore,type ReactNode} from 'react';
-import {ArrowDownLeft,ArrowUpRight,Boxes,Calculator,ChartNoAxesCombined,CheckCircle2,ChevronDown,ChevronRight,CircleUserRound,Coins,FileChartColumn,House,Landmark,LayoutList,LogOut,Moon,Plus,Settings,Sun,Target,UsersRound,Wallet,X} from 'lucide-react';
+import {ArrowDownLeft,ArrowUpRight,Boxes,Calculator,ChartNoAxesCombined,CheckCircle2,ChevronDown,CircleUserRound,Coins,FileChartColumn,House,Landmark,LayoutList,Monitor,Moon,Plus,Settings,Sun,Target,UsersRound,Wallet,X} from 'lucide-react';
 import {useLanguage} from '@mfu/ui/settings.tsx';
 import {loadQuickEntry} from './actions';
 import {sections,type Filters,type Section} from './model';
@@ -28,26 +27,38 @@ const server=()=>false;
 
 export function ThemeButton({thai}:{thai:boolean}) {
  const {setTheme}=useLanguage();
+ const ready=useSyncExternalStore(subscribe,hydrated,server);
  return <button type="button" className="finance-icon-button finance-theme" aria-label={thai?'สลับธีมสว่างและมืด':'Toggle light and dark theme'}
+  disabled={!ready}
   onClick={()=>setTheme(document.documentElement.dataset.theme==='dark'?'light':'dark')}>
   <Sun className="finance-sun" size={20}/><Moon className="finance-moon" size={20}/>
  </button>;
 }
 
 export function FinancePreferences({thai}:{thai:boolean}) {
- const {theme,setTheme,locale,setLocale}=useLanguage();
- const router=useRouter();
- return <section className="finance-panel finance-preferences">
-  <h2>{thai?'การแสดงผล':'Appearance'}</h2>
-  <div className="finance-fields">
-   <label>{thai?'ธีม':'Theme'}<select value={theme} onChange={event=>setTheme(event.target.value as typeof theme)}>
-    <option value="system">{thai?'ตามระบบ':'System'}</option><option value="light">{thai?'สว่าง':'Light'}</option><option value="dark">{thai?'มืด':'Dark'}</option>
-   </select></label>
-   <label>{thai?'ภาษา':'Language'}<select value={locale==='th'?'th':'en'} onChange={event=>{setLocale(event.target.value as 'en'|'th');router.refresh();}}>
-    <option value="en">English</option><option value="th">ไทย</option>
-   </select></label>
-  </div>
+ const {theme,setTheme}=useLanguage();
+ const options=[['system','System','ตามระบบ',Monitor],['light','Light','สว่าง',Sun],['dark','Dark','มืด',Moon]] as const;
+ return <section className="finance-panel finance-preferences" aria-labelledby="finance-appearance">
+  <h2 id="finance-appearance">{thai?'การแสดงผล':'Appearance'}</h2>
+  <fieldset className="finance-theme-picker">
+   <legend>{thai?'ธีม':'Theme'}</legend>
+   <div>{options.map(([value,en,th,Icon])=><label key={value}>
+    <input type="radio" name="finance-theme" value={value} checked={theme===value} onChange={()=>setTheme(value)}/>
+    <span><Icon size={18} aria-hidden/>{thai?th:en}</span>
+   </label>)}</div>
+  </fieldset>
+  <div className="finance-preference-language"><FinanceLanguage thai={thai}/></div>
  </section>;
+}
+
+export function FinanceLanguage({thai}:{thai:boolean}) {
+ const {locale,setLocale}=useLanguage();
+ const label=thai?'ภาษา':'Language';
+ return <label>{label}<select aria-label={label} value={locale==='th'?'th':'en'} onChange={event=>{
+  setLocale(event.target.value==='th'?'th':'en');location.reload();
+ }}>
+  <option value="en">EN · English</option><option value="th">TH · ไทย</option>
+ </select></label>;
 }
 
 export function QuickButton({type,children,className='finance-button'}:{type?:QuickType;children:ReactNode;className?:string}) {
@@ -69,12 +80,9 @@ function AddSheet({dialogRef,thai,mode,change,status,onClose,onSaved}:{dialogRef
    </div>
    {!status?<div className="finance-form-skeleton" role="status"><span className="sr-only">{l('Loading form','กำลังโหลดแบบฟอร์ม')}</span><i/><i/><i/></div>:null}
    {status?.error&&<p role="alert" className="finance-error">{status.error} <button type="button" className="finance-button" onClick={()=>change(mode)}>{l('Retry','ลองใหม่')}</button></p>}
-   {status?.message&&<p className="finance-empty">{status.message}</p>}
-   {status?.form&&<>
-    {mode==='income'&&status.form.fields.find(field=>field.key==='target')?.list?.length===0
-     ?<div className="finance-empty"><p>{l('Create an order before recording a receipt.','สร้างคำสั่งซื้อก่อนบันทึกรับเงิน')}</p><Link href="/finance?section=orders#entry" onClick={()=>dialogRef.current?.close()}>{l('Go to orders','ไปที่คำสั่งซื้อ')} <ChevronRight size={16}/></Link></div>
-     :<Entry key={mode} form={status.form} thai={thai} summary={false} quick onSaved={onSaved}/>}
-   </>}
+   {status?.href&&<Link className="finance-button primary" href={status.href} onClick={()=>dialogRef.current?.close()}>
+    {l('Open Team Payouts','เปิดหน้าจ่ายส่วนแบ่งทีม')}</Link>}
+   {status?.form&&<Entry key={mode} form={status.form} thai={thai} summary={false} quick onSaved={onSaved}/>}
   </div>
  </dialog>;
 }
@@ -90,7 +98,7 @@ export function FinanceChrome({children,section,dates,thai,title,period}:{childr
  useEffect(()=>()=>{if(timer.current)clearTimeout(timer.current);},[]);
  const l=(en:string,th:string)=>thai?th:en;
  const href=(key:Section)=>'/finance?'+new URLSearchParams({section:key,range:dates.range,from:dates.from,to:dates.to});
- const active=nav.some(([key])=>key===section)?section:section==='reports'?'profit':section==='team'?'settings':'records';
+ const active=nav.some(([key])=>key===section)?section:section==='reports'||section==='shares'?'profit':section==='team'?'settings':'records';
  const change=async (type:QuickType)=>{
   setMode(type);
   setStatus(null);
@@ -115,7 +123,7 @@ export function FinanceChrome({children,section,dates,thai,title,period}:{childr
  return <QuickContext.Provider value={ready?open:null}>
   <div className="finance">
    <aside className="finance-sidebar">
-    <Link className="finance-sidebar-title" href={href('overview')}><BrandMark/><span><strong>Memo Finance</strong><small>3D Printing MFU</small></span></Link>
+    <Link className="finance-sidebar-title" href={href('overview')}><BrandMark/><span><strong>VerdantPay</strong><small>Memo Finance</small></span></Link>
     <QuickButton className="finance-sidebar-add"><Plus size={19}/>{l('Add record','เพิ่มรายการ')}</QuickButton>
     <nav aria-label={l('Finance navigation','เมนูการเงิน')}>
      {nav.map(([key,en,th,Icon])=><Link key={key} href={href(key)} aria-current={key===active?'page':undefined}><Icon size={19}/>{l(en,th)}</Link>)}
@@ -123,14 +131,13 @@ export function FinanceChrome({children,section,dates,thai,title,period}:{childr
     <nav className="finance-secondary-nav" aria-label={l('Finance modules','เมนูย่อยการเงิน')}>
      {secondary.map(([key,Icon])=><Link key={key} href={href(key)} aria-current={key===section?'page':undefined}><Icon size={17}/>{sections[key][thai?1:0]}</Link>)}
     </nav>
-    <Link className="finance-back" href="/dashboard"><LogOut size={17}/>{l('Admin workspace','พื้นที่ผู้ดูแล')}</Link>
    </aside>
    <div className="finance-workspace">
     <header className="finance-topbar">
      <div className="finance-identity"><Link href={href('overview')} className="finance-mobile-mark" aria-label={l('Memo Finance home','หน้าหลักการเงิน Memo')}><BrandMark/></Link><div>
       <h1 className="finance-mobile-title">{section==='overview'?l('Hello, Memo','สวัสดี Memo'):title}</h1>
       <strong className="finance-desktop-title">Memo Finance</strong>
-      {['goals','settings'].includes(section)?null:<a href="#finance-period" className="finance-top-period">{period}<ChevronDown size={12}/></a>}
+      {['goals','settings','team'].includes(section)?null:<a href="#finance-period" className="finance-top-period">{period}<ChevronDown size={12}/></a>}
      </div></div>
      <div className="finance-top-actions"><ThemeButton thai={thai}/><Link className="finance-icon-button" href={href('settings')} aria-label={l('Profile and settings','โปรไฟล์และการตั้งค่า')}><CircleUserRound size={21}/></Link></div>
     </header>
@@ -149,5 +156,5 @@ export function FinanceChrome({children,section,dates,thai,title,period}:{childr
 }
 
 export function BrandMark() {
- return <span className="finance-mark"><Image src={memoLogo} alt="" width={104} height={104}/></span>;
+ return <span className="finance-mark"><Image src={memoLogo} alt="" width={104} height={104} unoptimized/></span>;
 }

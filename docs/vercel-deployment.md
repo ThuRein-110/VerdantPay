@@ -1,5 +1,7 @@
 # Two independent Vercel projects
 
+For the standalone VerdantPay recovery, use the [current deployment runbook](standalone-deployment.md). The two-project printing instructions and Services topology below describe earlier configurations.
+
 For production admin login returning `Origin rejected`, see the [origin diagnosis and exact admin settings](admin-origin-fix.md). `ADMIN_ORIGIN` overrides `APP_ORIGIN` for admin API CSRF checks; aliases require an explicit `ALLOWED_ORIGINS` list and a matching request host.
 
 The operator reports existing independent deployments. Vercel CLI 65.11.0 reports **Logged out**, and deployment credentials and actual app URLs are unavailable in this checkout. Local production builds are verified separately; existing hosted configuration and redeployment are not claimed as verified. Follow the migration/worker rollout in [production upgrade](production-upgrade.md) before enabling new generation.

@@ -15,12 +15,73 @@ function watchErrors(page:Page) {
  page.on('console',message=>{if(message.type()==='error')errors.push(message.text());});
  return errors;
 }
+
+test('Team Payouts records manually entered amounts with explicit excess confirmation and history',async({page,context})=>{
+ await signedIn(context);
+ await page.setViewportSize({width:360,height:800});
+ await page.emulateMedia({colorScheme:'light'});
+ await page.goto('/finance?section=team');
+ const date=page.getByLabel('Payment Date');
+ const {today}=await (await page.request.get(backend+'/health')).json();
+ await expect(date).toHaveValue(today);
+ const previousDay=new Date(today+'T00:00:00Z');
+ previousDay.setUTCDate(previousDay.getUTCDate()-1);
+ await date.fill(previousDay.toISOString().slice(0,10));
+ await expect(date).not.toHaveValue(today);
+ await date.fill(today);
+ const recipient=page.getByRole('combobox',{name:'Team Member'});
+ expect(await recipient.locator('option').allTextContents()).toEqual(['Select a recipient','Team Member 1','Team Member 2','Owner']);
+ await recipient.selectOption({label:'Team Member 1'});
+ const amount=page.getByLabel('Amount (THB)');
+ await expect(amount).toHaveValue('');
+ await expect(page.getByText('15%',{exact:true})).toHaveCount(0);
+ const post=page.getByRole('button',{name:'Record Payout',exact:true});
+ await amount.fill('0');
+ expect(await amount.evaluate((field:HTMLInputElement)=>field.validity.rangeUnderflow)).toBe(true);
+ await amount.fill('125.00');
+ await post.evaluate(button=>{(button as HTMLButtonElement).click();(button as HTMLButtonElement).click();});
+ const history=page.locator('#payout-history');
+ await expect(history.locator('tbody tr').filter({hasText:/125\.00/})).toHaveCount(1);
+ await expect(amount).toHaveValue('');
+ await recipient.selectOption({label:'Team Member 1'});
+ await amount.fill('125.00');
+ await post.click();
+ await expect(page.getByRole('alert').filter({hasText:'already recorded'})).toBeVisible();
+ await amount.fill('225.00');
+ await post.click();
+ const warning=page.getByRole('alert').filter({hasText:'exceeds the unpaid allocation'});
+ await expect(warning).toContainText('175.00');
+ await expect(warning).toContainText('50.00');
+ await expect(amount).toHaveValue('225.00');
+ await expect(history.locator('tbody tr').filter({hasText:/225\.00/})).toHaveCount(0);
+ await page.getByRole('button',{name:'Cancel',exact:true}).click();
+ await expect(amount).toHaveValue('225.00');
+ await post.click();
+ await page.getByRole('button',{name:'Confirm payout above allocation'}).click();
+ await expect(history.locator('tbody tr').filter({hasText:/225\.00/})).toContainText('Recorded above allocation');
+ await page.getByRole('button',{name:'Toggle light and dark theme'}).click();
+ await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
+ await overflow(page);
+ await page.getByRole('link',{name:'Profit-sharing report',exact:true}).click();
+ await expect(page.getByRole('heading',{name:'Net profit',exact:true})).toBeVisible();
+ await expect(page.getByText('15%',{exact:true})).toHaveCount(2);
+ await expect(page.getByText('70%',{exact:true})).toBeVisible();
+ await expect(page.getByLabel('Amount (THB)')).toHaveCount(0);
+ await page.goto('/finance?section=team&lang=th');
+ await expect(page.getByLabel('จำนวนเงิน (บาท)')).toBeVisible();
+ await expect(page.getByRole('heading',{name:'ประวัติการจ่าย',exact:true})).toBeVisible();
+ await overflow(page);
+});
 test('private admin route denies anonymous, unverified and non-admin sessions',async({page,context})=>{
  await page.setViewportSize({width:390,height:844});
  await page.emulateMedia({colorScheme:'light'});
- await page.goto('/finance?lang=en');
+ await page.goto('/?lang=en');
  await expect(page).toHaveURL(/\/finance\/login$/);
  await expect(page.locator('input[name=email]')).toBeVisible();
+ await expect(page.getByRole('link',{name:'Create account'})).toBeVisible();
+ for(const route of ['/configure','/models','/dashboard','/api/auth']){
+  expect((await page.request.get(route)).status()).toBe(404);
+ }
  await overflow(page);
  mkdirSync(screenshots,{recursive:true});
  await page.screenshot({path:resolve(screenshots,'login-light.png')});
@@ -43,6 +104,90 @@ test('private admin route denies anonymous, unverified and non-admin sessions',a
  await page.getByRole('button',{name:'Verify code'}).click();
  await expect(page).toHaveURL(/\/finance$/);
  await expect(page.locator('.finance-balance')).toBeVisible();
+});
+
+test('English defaults to sign-in, Thai persists, and unsupported passkeys fall back to passwords',async({page})=>{
+ await page.addInitScript(()=>Object.defineProperty(window,'PublicKeyCredential',{value:undefined}));
+ await page.goto('/');
+ await expect(page.getByRole('heading',{name:'Welcome back'})).toBeVisible();
+ await expect(page.getByText(/browser does not support passkeys/)).toBeVisible();
+ await page.getByLabel('Language',{exact:true}).selectOption('th');
+ await expect(page.getByRole('heading',{name:'ยินดีต้อนรับกลับ'})).toBeVisible();
+ await page.reload();
+ await expect(page.locator('html')).toHaveAttribute('lang','th');
+ await page.getByLabel('ภาษา',{exact:true}).selectOption('en');
+ await expect(page.getByRole('heading',{name:'Welcome back'})).toBeVisible();
+});
+
+test('virtual passkey registration, rename, sign-in with MFA, removal and cancellation',async({page,context})=>{
+ const cdp=await context.newCDPSession(page);
+ await cdp.send('WebAuthn.enable');
+ await cdp.send('WebAuthn.addVirtualAuthenticator',{options:{
+  protocol:'ctap2',transport:'internal',hasResidentKey:true,hasUserVerification:true,
+  isUserVerified:true,automaticPresenceSimulation:true,
+ }});
+ await context.addCookies([{name:'sb-127-auth-token',value:cookie('admin',10),url:frontend,httpOnly:true,sameSite:'Lax'}]);
+ await page.goto('/finance?section=settings');
+ await page.getByRole('button',{name:'Manage passkeys'}).click();
+ await expect(page.getByRole('button',{name:'Register a passkey'})).toBeDisabled();
+ await expect(page.getByText(/sign in again with your password/)).toBeVisible();
+ await signedIn(context);
+ await page.reload();
+ await page.getByRole('button',{name:'Manage passkeys'}).click();
+ await page.getByRole('button',{name:'Register a passkey'}).click();
+ await expect(page.getByText('Passkey registered.')).toBeVisible();
+ await page.getByLabel('Passkey name').fill('Test device');
+ await page.getByRole('button',{name:'Rename',exact:true}).click();
+ await expect(page.getByText('Passkey renamed.')).toBeVisible();
+ await page.getByRole('button',{name:'Sign out'}).click();
+ await expect(page.getByRole('heading',{name:'Welcome back'})).toBeVisible();
+ await page.exposeFunction('expirePasskeyChallenge',()=>context.clearCookies({name:'verdant-passkey'}));
+ await page.exposeFunction('openOtherAccount',()=>signedIn(context,'applicant'));
+ await page.evaluate(()=>{
+  const get=navigator.credentials.get.bind(navigator.credentials);
+  navigator.credentials.get=async options=>{
+   const result=await get(options);
+   await (window as unknown as {expirePasskeyChallenge:()=>Promise<void>}).expirePasskeyChallenge();
+   return result;
+  };
+ });
+ await page.getByRole('button',{name:'Sign in with passkey',exact:true}).click();
+ await expect(page.getByRole('alert').filter({hasText:/request expired/})).toBeVisible();
+ await page.reload();
+ await page.evaluate(()=>{
+  const get=navigator.credentials.get.bind(navigator.credentials);
+  navigator.credentials.get=async options=>{
+   const result=await get(options);
+   await (window as unknown as {openOtherAccount:()=>Promise<void>}).openOtherAccount();
+   return result;
+  };
+ });
+ await page.getByRole('button',{name:'Sign in with passkey',exact:true}).click();
+ await expect(page.getByRole('alert').filter({hasText:/Sign out before using a passkey for another account/})
+  .or(page.getByRole('heading',{name:'Pending approval',exact:true}))).toBeVisible();
+ await page.goto('/finance');
+ await expect(page.getByRole('heading',{name:'Pending approval',exact:true})).toBeVisible();
+ await context.clearCookies({name:'sb-127-auth-token'});
+ await page.goto('/finance/login');
+ await page.getByRole('button',{name:'Sign in with passkey',exact:true}).click();
+ await expect(page.getByRole('heading',{name:'Verify your sign-in'})).toBeVisible();
+ expect((await page.request.get('/finance/export?report=profit&format=csv')).status()).toBe(401);
+ await page.getByRole('button',{name:'Continue with authenticator'}).click();
+ await page.locator('input[name=code]').fill('123456');
+ await page.getByRole('button',{name:'Verify code'}).click();
+ await expect(page).toHaveURL(/\/finance$/);
+ await page.goto('/finance?section=settings');
+ await page.getByRole('button',{name:'Manage passkeys'}).click();
+ await expect(page.getByText(/Last used/)).toBeVisible();
+ page.once('dialog',dialog=>dialog.accept());
+ await page.getByRole('button',{name:'Remove',exact:true}).click();
+ await expect(page.getByText('Passkey removed.')).toBeVisible();
+ await page.getByRole('button',{name:'Sign out'}).click();
+ await page.getByRole('button',{name:'Sign in with passkey',exact:true}).click();
+ await expect(page.getByRole('alert').filter({hasText:/could not be completed/})).toBeVisible();
+ await page.evaluate(()=>{navigator.credentials.get=async()=>{throw new DOMException('cancelled','NotAllowedError');};});
+ await page.getByRole('button',{name:'Sign in with passkey',exact:true}).click();
+ await expect(page.getByRole('alert').filter({hasText:/cancelled or timed out/})).toBeVisible();
 });
 
 test('signup confirmation, pending approval, scoped member login and password recovery',async({page,browser,request})=>{
@@ -85,7 +230,7 @@ test('signup confirmation, pending approval, scoped member login and password re
  await page.getByRole('link',{name:'Check approval'}).click();
  await expect(page.getByRole('heading',{name:'Pending approval'})).toBeVisible();
  await page.reload();
- await page.goto('/finance');
+ await page.goto('/');
  await expect(page).toHaveURL(/\/pending$/);
  expect((await page.request.get('/finance/export?report=profit&format=csv')).status()).toBe(401);
  await submit('Sign out');
@@ -95,6 +240,7 @@ test('signup confirmation, pending approval, scoped member login and password re
  await signedIn(owner);
  const settings=await owner.newPage();
  await settings.goto(frontend+'/finance?section=settings&lang=en');
+ await settings.getByRole('link',{name:'Team access',exact:true}).click();
  const application=settings.locator('form.finance-access-item').filter({hasText:address});
  await expect(application).toBeVisible();
  await application.locator('select[name=role]').selectOption('team');
@@ -223,19 +369,17 @@ test('mobile layouts, system and saved themes, navigation, chart, keyboard dialo
  await overflow(page);
 
  await page.locator('.finance-fab').click();
- const order=sheet.getByRole('combobox',{name:'Order',exact:true});
- await expect(order).toBeVisible();
- const openOrder=await order.getByRole('option',{name:/DEMO-003/}).getAttribute('value');
- await order.selectOption(openOrder!);
+ await sheet.getByRole('combobox',{name:'Income category',exact:true}).selectOption({label:'General income'});
+ await sheet.getByLabel('Description',{exact:true}).fill('QA manual income');
+ await expect(sheet.getByRole('combobox',{name:'Order',exact:true})).toHaveCount(0);
  await sheet.getByLabel('Amount (THB)',{exact:true}).fill('125.25');
  await sheet.getByRole('combobox',{name:'Account',exact:true}).selectOption({label:'Cash'});
- await sheet.getByLabel('Description / notes',{exact:true}).fill('QA sales receipt');
  await sheet.getByRole('button',{name:'Save',exact:true}).click();
  await expect(sheet).not.toBeVisible();
  await nav.getByRole('link',{name:'Home',exact:true}).click();
  await expect(page.locator('.finance-balance')).toBeVisible();
  await page.getByRole('link',{name:'Records',exact:true}).click();
- await expect(page.getByText('QA sales receipt',{exact:true})).toBeVisible();
+ await expect(page.getByText('QA manual income',{exact:true})).toBeVisible();
 
  await nav.getByRole('link',{name:'Reports',exact:true}).click();
  await expect(nav.getByRole('link',{name:'Reports',exact:true})).toHaveAttribute('aria-current','page');
@@ -257,21 +401,33 @@ test('mobile layouts, system and saved themes, navigation, chart, keyboard dialo
  await expect(page.getByRole('img',{name:'Monthly net profit',exact:true})).toBeVisible();
  await nav.getByRole('link',{name:'Settings',exact:true}).click();
  await expect(nav.getByRole('link',{name:'Settings',exact:true})).toHaveAttribute('aria-current','page');
- await page.getByRole('link',{name:'Team shares',exact:true}).click();
- await expect(page.getByRole('heading',{name:'Profit allocation'})).toBeVisible();
- await page.getByRole('link',{name:'This year',exact:true}).click();
- await expect(page.getByRole('link',{name:'This year',exact:true})).toHaveAttribute('aria-current','true');
+ const settingsNav=page.getByRole('navigation',{name:'Settings sections',exact:true});
+ await expect(settingsNav.getByRole('link',{name:'Account',exact:true})).toHaveAttribute('aria-current','page');
+ await expect(page.getByRole('heading',{name:'Appearance',exact:true})).toBeVisible();
+ await expect(page.getByRole('heading',{name:'Financial accounts',exact:true})).toHaveCount(0);
+ await settingsNav.getByRole('link',{name:'Business',exact:true}).click();
+ await expect(page.getByRole('heading',{name:'Financial accounts',exact:true})).toBeVisible();
+ await expect(page.getByText('Add account',{exact:true})).toBeVisible();
+ await expect(page.getByRole('heading',{name:'Audit history',exact:true})).toBeVisible();
+ await page.getByRole('link',{name:'Team Payouts',exact:true}).click();
+ await page.getByRole('link',{name:'Profit-sharing report',exact:true}).click();
+ await expect(page.getByRole('heading',{name:'Net profit',exact:true})).toBeVisible();
+ await expect(page.getByLabel('Profit month')).toHaveValue(/^\d{4}-\d{2}$/);
  await expect(page.getByText('15%',{exact:true})).toHaveCount(2);
  await expect(page.getByText('70%',{exact:true})).toBeVisible();
  await expect(page.getByRole('heading',{name:'Payment history'})).toBeVisible();
  await overflow(page);
  await nav.getByRole('link',{name:'Settings',exact:true}).click();
- await page.getByRole('combobox',{name:'Theme',exact:true}).selectOption('system');
+ await page.getByRole('radio',{name:'System',exact:true}).check();
  await page.emulateMedia({colorScheme:'dark'});
  await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
  await page.emulateMedia({colorScheme:'light'});
  await expect(page.locator('html')).toHaveAttribute('data-theme','light');
  await page.screenshot({path:resolve(screenshots,'settings-light.png')});
+ await page.getByRole('combobox',{name:'Language',exact:true}).selectOption('th');
+ await expect(page.getByRole('heading',{name:'การแสดงผล',exact:true})).toBeVisible();
+ await expect(page.getByRole('navigation',{name:'เมนูการตั้งค่า'})).toBeVisible();
+ await overflow(page);
  for(const section of ['orders','income','expenses','investments','cash','inventory','calculator','reports','settings']){
   await page.goto('/finance?section='+section+'&lang=en');
   await expect(page.locator('.finance-topbar')).toBeVisible();
@@ -335,7 +491,7 @@ test('tablet and desktop resize, theme and desktop add panel',async({page,contex
  await page.locator('.finance-sidebar-add').click();
  const dialog=page.getByRole('dialog');
  await expect(dialog).toBeVisible();
- await expect(dialog.getByRole('combobox',{name:'Order',exact:true})).toBeVisible();
+ await expect(dialog.getByRole('combobox',{name:'Income category',exact:true})).toBeVisible();
  const box=await dialog.boundingBox();
  expect(box?.width).toBeLessThan(500);
  expect((box?.x??0)+(box?.width??0)).toBeGreaterThan(1430);
@@ -345,6 +501,7 @@ test('email preferences verify a recipient and queue a test without contacting a
  await signedIn(context);
  await page.setViewportSize({width:390,height:844});
  await page.goto('/finance?section=settings&lang=en');
+ await page.getByRole('link',{name:'Notifications',exact:true}).click();
  const panel=page.getByRole('region',{name:'Email Notifications'});
  const testButton=panel.getByRole('button',{name:'Send Test Email'});
  await expect(testButton).toBeDisabled();

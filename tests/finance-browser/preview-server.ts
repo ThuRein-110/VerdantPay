@@ -1,5 +1,5 @@
 import {createServer,type IncomingMessage,type ServerResponse} from 'node:http';
-import {createHash,randomUUID} from 'node:crypto';
+import {createHash,randomBytes,randomUUID} from 'node:crypto';
 import {admin,applicant,financeDatabase,financeSeed,identity} from '../finance-db-fixture';
 import {actors,backend,factor,frontend,previewActor,previewService,previewSession,previewUser} from './preview-auth';
 
@@ -17,6 +17,8 @@ async function start() {
  let confirmed=false;
  const codes=new Map<string,{challenge:string;kind:'signup'|'recovery'}>();
  const mailbox=new Map<string,string>();
+ const challenges=new Map<string,{challenge:string;user?:string}>();
+ const passkeys=new Map<string,{id:string;user:string;credential:string;friendly_name:string;created_at:string;last_used_at?:string}>();
  const hash=(value:string)=>createHash('sha256').update(value).digest('base64url');
  const respond=(res:ServerResponse,body:unknown,status=200)=>{
   res.writeHead(status,{'content-type':'application/json'});
@@ -43,6 +45,44 @@ async function start() {
      mailbox.set(kind,redirect.href);
     };
     if(path==='/mailbox')return respond(res,{link:mailbox.get(url.searchParams.get('kind')??'')});
+    if(path.startsWith('/auth/v1/passkeys')){
+     const current=actor?actors[actor].id:undefined;
+     const rpId=new URL(frontend).hostname;
+     if(path.endsWith('/options')){
+      const registration=path.includes('/registration/');
+      if(registration&&!current)return authError('session_not_found',401);
+      const id=randomUUID(), challenge=randomBytes(32).toString('base64url');
+      challenges.set(id,{challenge,user:registration?current:undefined});
+      const options=registration?{challenge,rp:{id:rpId,name:'VerdantPay'},user:{
+       id:Buffer.from(current!).toString('base64url'),name:actors[actor!].email,displayName:'Fixture Account',
+      },pubKeyCredParams:[{type:'public-key',alg:-7}],authenticatorSelection:{residentKey:'required',userVerification:'required'}}:
+       {challenge,rpId,userVerification:'required'};
+      return respond(res,{challenge_id:id,options,expires_at:Math.floor(Date.now()/1000)+300});
+     }
+     if(path.endsWith('/verify')){
+      const found=challenges.get(body.challenge_id);
+      challenges.delete(body.challenge_id);
+      const client=JSON.parse(Buffer.from(body.credential?.response?.clientDataJSON??'','base64url').toString());
+      if(!found||client.challenge!==found.challenge||client.origin!==frontend)return authError('webauthn_challenge_expired');
+      if(path.includes('/registration/')){
+       if(!current||found.user!==current||client.type!=='webauthn.create')return authError('session_not_found',401);
+       const item={id:randomUUID(),user:current,credential:body.credential.id,friendly_name:'Virtual passkey',created_at:new Date().toISOString()};
+       passkeys.set(item.id,item);
+       return respond(res,item);
+      }
+      const item=[...passkeys.values()].find(entry=>entry.credential===body.credential.id);
+      if(!item||found.user||client.type!=='webauthn.get')return authError('invalid_credentials');
+      item.last_used_at=new Date().toISOString();
+      return respond(res,previewSession(item.user===admin?'unverified':'applicant'));
+     }
+     if(!current)return authError('session_not_found',401);
+     if(path==='/auth/v1/passkeys')return respond(res,[...passkeys.values()].filter(item=>item.user===current));
+     const id=path.split('/').at(-1)!;
+     const item=passkeys.get(id);
+     if(!item||item.user!==current)return authError('not_found',404);
+     if(req.method==='PATCH'){item.friendly_name=body.friendly_name;return respond(res,item);}
+     if(req.method==='DELETE'){passkeys.delete(id);res.writeHead(204);res.end();return;}
+    }
     if(path==='/auth/v1/signup'){
      if(passwordHash)return authError('user_already_exists',422);
      if(body.email!==actors.applicant.email)return authError('unexpected_fixture_email');
@@ -110,8 +150,17 @@ async function start() {
     if(path==='/rest/v1/rpc/finance_email_test')return respond(res,(await db.query<{value:boolean}>('select public.finance_email_test() value')).rows[0].value);
     if(path==='/rest/v1/rpc/finance_overview')return respond(res,(await db.query<{value:unknown}>(
      'select public.finance_overview($1,$2) value',[body.p_from,body.p_to])).rows[0].value);
+    if(path==='/rest/v1/rpc/finance_month_payout_page')return respond(res,(await db.query<{value:unknown}>(
+     'select public.finance_month_payout_page($1,$2) value',[body.p_month,body.p_offset])).rows[0].value);
+    if(path==='/rest/v1/rpc/finance_manual_payout_page')return respond(res,(await db.query<{value:unknown}>(
+     'select public.finance_manual_payout_page($1,$2) value',[body.p_offset,body.p_record])).rows[0].value);
+    if(path==='/rest/v1/rpc/finance_record_manual_payout')return respond(res,(await db.query<{value:unknown}>(
+     'select public.finance_record_manual_payout($1,$2,$3,$4,$5) value',
+     [body.p_key,body.p_recipient,body.p_day,body.p_amount,body.p_confirm_limit])).rows[0].value);
     if(path==='/rest/v1/rpc/finance_write')return respond(res,(await db.query<{value:string}>(
      'select public.finance_write($1,$2,$3::jsonb) value',[body.p_action,body.p_key,JSON.stringify(body.p_data)])).rows[0].value);
+    if(path==='/rest/v1/rpc/finance_record_income')return respond(res,(await db.query<{value:string}>(
+     'select public.finance_record_income($1,$2::jsonb) value',[body.p_key,JSON.stringify(body.p_data)])).rows[0].value);
     if(path==='/rest/v1/rpc/finance_save_goal')return respond(res,(await db.query<{value:boolean}>(
      'select public.finance_save_goal($1,$2,$3,$4,$5,$6) value',[body.p_id,body.p_version,body.p_title,body.p_target,body.p_saved,body.p_deadline])).rows[0].value);
     const relation=path.match(/^\/rest\/v1\/(finance_[a-z_]+)$/)?.[1];

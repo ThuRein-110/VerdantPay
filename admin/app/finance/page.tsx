@@ -1,8 +1,9 @@
-import {preferences} from '@mfu/ui/server-locale.ts';
+import {financePreferences} from './preferences';
+import {FinanceSecurity} from './passkeys';
 import Link from 'next/link';
-import {ArrowDownLeft, ArrowUpRight, CalendarDays, ChartNoAxesCombined, CircleDollarSign, Coins, HandCoins, Landmark, TrendingUp, UsersRound, Wallet} from 'lucide-react';
+import {ArrowDownLeft, ArrowUpRight, Bell, Building2, CalendarDays, ChartNoAxesCombined, ChevronRight, CircleDollarSign, CircleUserRound, Coins, HandCoins, Landmark, ShieldCheck, TrendingUp, UsersRound, Wallet} from 'lucide-react';
 import {financeAdmin,overview,rows,type Row,type Stats} from './data';
-import {baht,bangkokToday,period,sections,thb,type Filters,type L,type Section,type CostInput} from './model';
+import {baht,bangkokToday,day,payoutName,period,sections,thb,type Filters,type L,type Section,type CostInput} from './model';
 import {localized,moduleCopy,sectionTables,tables,type Column,type Table} from './sections';
 import {code,definitions,type Form,type Lookups} from './forms';
 import {Entry,QuickCalculator} from './entry';
@@ -14,21 +15,27 @@ import {MembershipPanel,type MembershipList} from './access-panel';
 import {financeOwner} from './membership';
 import {FinanceSignOut} from './login/screen';
 import {GoalPreview,Goals} from './goals';
-import {Balance,DashboardActions,RecentTransactions,TeamCards,financeUrl} from './panels';
-import {financeAnalytics,financeInvestments,financeTeam} from './analytics';
+import {Balance,DashboardActions,RecentTransactions,financeUrl} from './panels';
+import {financeAnalytics,financeInvestments} from './analytics';
 import {financeLookups} from './lookups';
+import {ManualPayoutForm,PayoutCards,type ManualPayoutData,type PayoutMonth} from './payouts';
 import './finance.css';
 
 export const dynamic='force-dynamic';
-export const metadata={title:'Finance | 3D Printing MFU By Memo',robots:{index:false,follow:false}};
+export const metadata={title:'Finance',robots:{index:false,follow:false}};
 type Query = Record<string,string|string[]|undefined>;
-async function OwnerSettings({thai,page}:{thai:boolean;page:number}) {
- const owner=await financeOwner();
- if(!owner)return null;
+async function OwnerSettings({owner,thai,page}:{owner:NonNullable<Awaited<ReturnType<typeof financeOwner>>>;thai:boolean;page:number}) {
  const {data,error}=await owner.db.rpc('finance_membership_admin' as never,{p_offset:(page-1)*25} as never);
  if(error)return <p role="alert">{thai?'โหลดรายการอนุมัติไม่ได้':'Account approvals could not be loaded.'}</p>;
  return <MembershipPanel thai={thai} page={page} data={data as unknown as MembershipList}/>;
 }
+const settingsPanels=[
+ ['account','Account','บัญชีผู้ใช้',CircleUserRound],
+ ['notifications','Notifications','การแจ้งเตือน',Bell],
+ ['access','Team access','สิทธิ์ทีม',ShieldCheck],
+ ['business','Business','ธุรกิจ',Building2],
+] as const;
+const businessAction:Record<string,Form['action']>={accounts:'account',categories:'category',members:'member',agreements:'agreement'};
 const metrics = [
  ['revenue','Recognized revenue','รายได้ที่รับรู้'],['operating','Operating expenses','ค่าใช้จ่ายดำเนินงาน'],
  ['gross','Gross profit','กำไรขั้นต้น'],['net','Net profit before team shares','กำไรสุทธิก่อนแบ่งทีม'],
@@ -84,8 +91,8 @@ function DateControl({section,dates,l}:{section:Section;dates:Filters;l:L}) {
   <button className="finance-button">{l('Apply','ใช้ช่วงวันที่')}</button>
  </form></details></div>;
 }
-function TablePanel({table,data,count,section,dates,l,thai,query,sort,page,forms,editable,edit}:{table:Table;data:Row[];count:number;section:Section;dates:Filters;l:L;thai:boolean;query:string;sort:string;page:number;forms?:(row:Row)=>Form[];editable?:boolean;edit?:{id:string;form:Form;initial:Record<string,string>}}) {
- const fixed={section,range:dates.range,from:dates.from,to:dates.to,table:table.id};
+function TablePanel({table,data,count,section,dates,l,thai,query,sort,page,forms,editable,edit,entry}:{table:Table;data:Row[];count:number;section:Section;dates:Filters;l:L;thai:boolean;query:string;sort:string;page:number;forms?:(row:Row)=>Form[];editable?:boolean;edit?:{id:string;form:Form;initial:Record<string,string>};entry?:Form}) {
+ const fixed={section,range:dates.range,from:dates.from,to:dates.to,table:table.id,...(section==='settings'?{panel:'business'}:{})};
  const uri=(more:Record<string,string>)=>'/finance?'+new URLSearchParams({...fixed,q:query,sort,...more})+'#'+table.id;
  const derived=(row:Row):Row=>({...row,
   order_state:row.cancelled_on?'cancelled':row.recognized_on?'recognized':'open',
@@ -100,6 +107,7 @@ function TablePanel({table,data,count,section,dates,l,thai,query,sort,page,forms
    <button className="finance-button">{l('Filter','กรอง')}</button>
   </form>
  </header>
+ {entry&&<div className="finance-settings-entry"><Entry thai={thai} form={entry}/></div>}
  {edit&&<div className="finance-inline-edit"><Entry key={edit.id} form={edit.form} thai={thai} target={edit.id} initial={edit.initial} summary={false}/><Link href={uri({})}>{l('Close editor','ปิดตัวแก้ไข')}</Link></div>}
  {data.length>0?<div className="finance-table-scroll" tabIndex={0} role="region" aria-label={localized(l,table.title)}><table><thead><tr>{table.columns.map(([key,title])=><th key={key} scope="col">{localized(l,title)}</th>)}
   {(forms||editable||['orders','jobs'].includes(table.id))&&<th scope="col">{l('Details and actions','รายละเอียดและการดำเนินการ')}</th>}</tr></thead>
@@ -120,36 +128,48 @@ function TablePanel({table,data,count,section,dates,l,thai,query,sort,page,forms
  </section>;
 }
 const needed:Partial<Record<Section,(keyof Lookups)[]>>={
- orders:['accounts','sales'],income:['accounts','orders'],expenses:['accounts','expenses','orders','recurring'],
- inventory:['accounts'],calculator:['orders','spools'],team:['accounts'],investments:['accounts','assets'],cash:['accounts'],settings:['members'],
+ orders:['accounts','sales'],income:['accounts','sales','orders'],expenses:['accounts','expenses','orders','recurring'],
+ inventory:['accounts'],calculator:['orders','spools'],investments:['accounts','assets'],cash:['accounts'],
 };
 export default async function FinancePage({searchParams}:{searchParams:Promise<Query>}) {
- const [db,{locale},query]=await Promise.all([financeAdmin(),preferences(),searchParams]);
+ const [db,{locale},query]=await Promise.all([financeAdmin(),financePreferences(),searchParams]);
  const thai=locale==='th',l:L=(en,th)=>thai?th:en;
  const requested=typeof query.section==='string'?query.section:'overview';
  const section:Section=Object.hasOwn(sections,requested)?requested as Section:'overview';
- const dates=period(query),today=bangkokToday();
+ const today=bangkokToday(),filtered=period(query);
  const activeTable=typeof query.table==='string'?query.table:'';
+ const owner=section==='settings'?await financeOwner():null;
+ const settingsPanel=query.panel==='notifications'?'notifications':query.panel==='access'||query.membersPage?
+  (owner?'access':'account'):query.panel==='business'||(sectionTables.settings??[]).includes(activeTable)?'business':'account';
  const text=typeof query.q==='string'?query.q.trim().slice(0,120):'';
  const page=typeof query.page==='string'&&/^\d{1,5}$/.test(query.page)?Math.max(1,Number(query.page)):1;
  const sort=query.sort==='old'?'old':'new';
- const includesStats=['overview','profit','income','cash','team','reports','investments'].includes(section);
+ const includesStats=['overview','profit','income','cash','reports','investments'].includes(section);
  const kind=typeof query.kind==='string'&&/^[a-z_]{1,30}$/.test(query.kind)?query.kind:'';
- const record=typeof query.record==='string'&&/^[0-9a-f-]{36}$/i.test(query.record)?query.record:'';
- const tableIds=sectionTables[section]??[];
- const [stats,registers,lookups,transactions,analytics,team,investments,goals]=await Promise.all([
+ const record=typeof query.record==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(query.record)?query.record:'';
+ const requestedMonth=typeof query.month==='string'&&/^\d{4}-\d{2}$/.test(query.month)?query.month+'-01':'';
+ const selectedMonth=(day.safeParse(requestedMonth).success&&requestedMonth<=today?requestedMonth:
+  (filtered.to<=today?filtered.to:today).slice(0,7)+'-01');
+ const historyPage=activeTable==='allocations'?1:page;
+ const monthEnd=new Date(selectedMonth+'T00:00:00Z');
+ monthEnd.setUTCMonth(monthEnd.getUTCMonth()+1,0);
+ const lastDay=monthEnd.toISOString().slice(0,10);
+ const dates=section==='shares'?{from:selectedMonth,to:lastDay<today?lastDay:today,range:'custom'}:filtered;
+ const tableIds=section==='settings'&&settingsPanel!=='business'?[]:sectionTables[section]??[];
+ const [stats,registers,lookups,transactions,analytics,shares,payouts,investments,goals]=await Promise.all([
   includesStats?overview(db,dates):null,
   Promise.all(tableIds.map(id=>{const table=tables[id];const selectedRecord=record&&['income','expenses','stock','assets','payouts'].includes(id);
    const byPeriod=Boolean(query.range)&&!selectedRecord&&!['agreements','stock'].includes(id);
    return rows(db,table.relation,{date:table.date,dates:id==='allocations'?{...dates,from:dates.from.slice(0,7)+'-01'}:byPeriod?dates:undefined,
     sort:table.sort,ascending:table.sort==='name'?sort!=='old':sort==='old',search:table.search,query:activeTable===id?text:undefined,page:activeTable===id?page:1,
     match:selectedRecord?{id:record}:undefined});})),
-  financeLookups(db,needed[section]??[]),
+  financeLookups(db,section==='settings'&&settingsPanel==='business'?['members']:needed[section]??[]),
   section==='overview'||section==='records' ? rows(db,'finance_cash_register',{date:'occurred_on',dates,size:section==='records'?25:5,
    page:section==='records'?page:1,sort:'occurred_on',ascending:section==='records'&&sort==='old',
    search:'notes',query:section==='records'?text:undefined,match:section==='records'&&kind?{kind}:undefined}):null,
   section==='profit'||section==='reports'?financeAnalytics(db,dates):null,
-  section==='team'?financeTeam(db,dates):null,
+  section==='shares'?loadPayoutMonth(db,selectedMonth,historyPage):null,
+  section==='team'?loadManualPayouts(db,page,record):null,
   section==='investments'?financeInvestments(db,dates):null,
   section==='overview'?rows(db,'finance_goals',{sort:'created_at',match:{completed:false},size:1}):
    section==='goals'?rows(db,'finance_goals',{sort:'created_at',page}):null,
@@ -182,16 +202,19 @@ export default async function FinancePage({searchParams}:{searchParams:Promise<Q
  const reportArgs=new URLSearchParams({from:dates.from,to:dates.to,range:'custom'});
  const overviewMetrics=['revenue','totalExpenses','net','cash','teamPayable','ownerAllocation'];
  const scopedMetrics=section==='cash'?['cash','receivable','payable','teamPayable','received','withdrawals']:
-  section==='team'?['team','teamPaid','teamPayable','ownerAllocation','ownerRemaining','withdrawals']:
-   section==='income'?['invoiced','revenue','received','receivable']:overviewMetrics;
+  section==='income'?['invoiced','revenue','received','receivable']:overviewMetrics;
  const formatDate = new Intl.DateTimeFormat(thai?'th':'en-GB',{month:'short',day:'numeric',year:'numeric',timeZone:'UTC'});
  const periodLabel = dates.from===dates.to?formatDate.format(new Date(dates.to+'T00:00:00Z')):
   formatDate.formatRange(new Date(dates.from+'T00:00:00Z'),new Date(dates.to+'T00:00:00Z'));
+ const businessForms=sectionForms.settings??[];
+ const registersContent=tableIds.map((id,index)=><TablePanel key={id} table={tables[id]} data={registers[index].data} count={registers[index].count} section={section} dates={dates} l={l} thai={thai}
+  query={activeTable===id?text:''} page={activeTable===id?page:1} sort={activeTable===id?sort:'new'} forms={rowForms[id]} editable={id in editable}
+  edit={activeTable===id?edit:undefined} entry={section==='settings'?businessForms.find(form=>form.action===businessAction[id]):undefined}/>);
  return <FinanceChrome section={section} thai={thai} dates={dates} title={headerTitle} period={periodLabel}>
    <header className="finance-heading"><div><h1>{headerTitle}</h1>
-    {moduleCopy[section]&&<p>{localized(l,moduleCopy[section])}</p>}</div>
+    {section!=='settings'&&moduleCopy[section]&&<p>{localized(l,moduleCopy[section])}</p>}</div>
     {section==='profit'&&<Link href={financeUrl('reports',dates)} className="finance-button"><ChartNoAxesCombined size={17}/>{l('Reports','รายงาน')}</Link>}</header>
-   {!['overview','goals','settings'].includes(section)&&<DateControl section={section} dates={dates} l={l}/>}
+   {!['overview','goals','settings','team','shares'].includes(section)&&<DateControl section={section} dates={dates} l={l}/>}
    {stats&&section==='overview'&&<div className="finance-dashboard">
     <div className="finance-dashboard-main"><Balance data={stats} l={l} thai={thai}/><DashboardActions dates={dates} l={l}/>
      <GoalPreview goal={goals?.data[0]} thai={thai} href={financeUrl('goals',dates)}/></div>
@@ -225,17 +248,36 @@ export default async function FinancePage({searchParams}:{searchParams:Promise<Q
     <RecentTransactions records={transactions?.data??[]} l={l} thai={thai} dates={dates} full query={text} kind={kind} sort={sort} count={transactions?.count??0} page={page}/>
     <nav className="finance-module-links" aria-label={l('Financial registers','ทะเบียนการเงิน')}>{(['orders','income','expenses','investments','cash','inventory','calculator'] as const).map(key=><Link className="finance-button" key={key} href={financeUrl(key,dates)}>{localized(l,sections[key])}</Link>)}</nav>
    </>}
-   {team&&<TeamCards members={team} l={l} thai={thai} dates={dates}/>}
-   {section==='settings'&&<><FinancePreferences thai={thai}/>
-    <OwnerSettings thai={thai} page={typeof query.membersPage==='string'&&/^\d{1,4}$/.test(query.membersPage)?Math.max(1,Number(query.membersPage)):1}/>
-    <EmailSettings thai={thai}/><FinanceSignOut thai={thai}/><nav className="finance-module-links" aria-label={l('Finance shortcuts','ทางลัดการเงิน')}>
-    <Link className="finance-button" href={financeUrl('team',dates)}>{l('Team shares','ส่วนแบ่งทีม')}</Link>
-    <Link className="finance-button" href={financeUrl('records',dates)}>{l('Financial records','รายการการเงิน')}</Link>
-    <Link className="finance-button" href="/dashboard">{l('Admin workspace','พื้นที่ผู้ดูแล')}</Link>
-   </nav></>}
+   {payouts&&<><ManualPayoutForm recipients={payouts.recipients} today={today} thai={thai}/>
+    <ManualPayoutHistory data={payouts} thai={thai} l={l} page={page} focused={Boolean(record)}/>
+    <Link href="/finance?section=shares" className="finance-button">{l('Profit-sharing report','รายงานการแบ่งกำไร')}</Link></>}
+   {shares&&<ProfitShares db={db} data={shares} dates={dates} today={today} thai={thai} l={l}
+    ledgerPage={activeTable==='allocations'?page:1} historyPage={historyPage}
+    allocationForms={rowForms.allocations} close={sectionForms.shares?.[0]} ledgerQuery={activeTable==='allocations'?text:''}
+    ledgerSort={activeTable==='allocations'?sort:'new'} showLedger={activeTable==='allocations'}/>}
+   {section==='settings'&&<div className="finance-settings">
+    <nav className="finance-settings-nav" aria-label={l('Settings sections','เมนูการตั้งค่า')}>
+     {settingsPanels.filter(([key])=>key!=='access'||owner).map(([key,en,th,Icon])=><Link key={key}
+      href={key==='account'?'/finance?section=settings':'/finance?section=settings&panel='+key}
+      aria-current={settingsPanel===key?'page':undefined}>
+      <span className="finance-settings-icon"><Icon size={20} aria-hidden/></span><strong>{l(en,th)}</strong><ChevronRight className="finance-settings-arrow" size={17} aria-hidden/>
+     </Link>)}
+    </nav>
+    <div className="finance-settings-content">
+     {settingsPanel==='account'&&<><FinancePreferences thai={thai}/><FinanceSecurity thai={thai}/>
+      <section className="finance-panel finance-settings-session"><h2>{l('Session','เซสชัน')}</h2><FinanceSignOut thai={thai}/></section></>}
+     {settingsPanel==='notifications'&&<EmailSettings thai={thai}/>}
+     {settingsPanel==='access'&&owner&&<OwnerSettings owner={owner} thai={thai}
+      page={typeof query.membersPage==='string'&&/^\d{1,4}$/.test(query.membersPage)?Math.max(1,Number(query.membersPage)):1}/>}
+     {settingsPanel==='business'&&<>{registersContent}<nav className="finance-module-links" aria-label={l('Finance shortcuts','ทางลัดการเงิน')}>
+      <Link className="finance-button" href={financeUrl('team',dates)}>{l('Team Payouts','จ่ายส่วนแบ่งทีม')}</Link>
+      <Link className="finance-button" href={financeUrl('records',dates)}>{l('Financial records','รายการการเงิน')}</Link>
+     </nav></>}
+    </div>
+   </div>}
    {stats&&section==='cash'&&<section className="finance-panel"><h2>{l('Account balances','ยอดคงเหลือตามบัญชี')}</h2><dl className="finance-cost-results">{stats.accounts.map(account=><div key={account.name}><dt>{account.name}</dt><dd>{thb(account.balance,thai?'th':'en')}</dd></div>)}</dl></section>}
    {section==='calculator'&&<div id="entry"><QuickCalculator thai={thai}/></div>}
-   {sectionForms[section]&&<section className="finance-panel finance-entries" id={section==='calculator'?undefined:'entry'}>
+   {section!=='shares'&&section!=='settings'&&sectionForms[section]&&<section className="finance-panel finance-entries" id={section==='calculator'?undefined:'entry'}>
     <h2>{l('Record activity','บันทึกรายการ')}</h2>{sectionForms[section].map(form=><Entry form={form} thai={thai} key={form.title}/>)}
    </section>}
    {currentOrder&&detail&&<section className="finance-panel"><h2>{String(currentOrder.reference)} · {String(currentOrder.customer)}</h2>
@@ -246,16 +288,106 @@ export default async function FinancePage({searchParams}:{searchParams:Promise<Q
    </section>}
    {selectedJob&&<section className="finance-panel"><h2>{l('Production cost detail','รายละเอียดต้นทุนผลิต')} · {String(selectedJob.reference)}</h2>
     <dl className="finance-cost-results">{tables.jobs.columns.slice(2).map(([key,title,type])=><div key={key}><dt>{localized(l,title)}</dt><dd>{show(selectedJob[key],l,thai?'th':'en',key,type)}</dd></div>)}</dl></section>}
-   {tableIds.map((id,index)=><TablePanel key={id} table={tables[id]} data={registers[index].data} count={registers[index].count} section={section} dates={dates} l={l} thai={thai}
-    query={activeTable===id?text:''} page={activeTable===id?page:1} sort={activeTable===id?sort:'new'} forms={rowForms[id]} editable={id in editable} edit={activeTable===id?edit:undefined}/>)}
+   {section!=='settings'&&registersContent}
    {section==='reports'&&stats&&<>
     <MetricList data={stats} keys={overviewMetrics} l={l} thai={thai}/>
     {analytics&&<AnalyticsCharts data={stats} analytics={analytics} range={dates.range} thai={thai}/>}
     <section className="finance-panel finance-reports"><h2>{l('Download reports','ดาวน์โหลดรายงาน')}</h2>
+     <Link href="/finance?section=shares" className="finance-button">{l('Profit-sharing report','รายงานการแบ่งกำไร')}</Link>
      {Object.entries(reports).map(([id,title])=><div key={id}><strong>{localized(l,title)}</strong><span>
       <a className="finance-button" href={'/finance/export?'+reportArgs+'&report='+id+'&format=xlsx'}>Excel</a>
       <a className="finance-button" href={'/finance/export?'+reportArgs+'&report='+id+'&format=csv'}>CSV</a>
       {['yearly','profit'].includes(id)&&<Link className="finance-button" href={'/finance/print?'+reportArgs+'&report='+id}>{l('Print / PDF','พิมพ์ / PDF')}</Link>}</span></div>)}</section>
    </>}
  </FinanceChrome>;
+}
+
+type FinanceDB=Awaited<ReturnType<typeof financeAdmin>>;
+async function loadManualPayouts(db:FinanceDB,page:number,record:string) {
+ const {data,error}=await db.rpc('finance_manual_payout_page' as never,{p_offset:(page-1)*25,p_record:record||null} as never);
+ if(error)throw Error(error.message);
+ return data as unknown as ManualPayoutData;
+}
+function ManualPayoutHistory({data,thai,l,page,focused}:{data:ManualPayoutData;thai:boolean;l:L;page:number;focused:boolean}) {
+ const locale=thai?'th':'en-GB';
+ const date=new Intl.DateTimeFormat(locale,{dateStyle:'medium',timeZone:'UTC'});
+ const href=(page:number)=>'/finance?section=team&page='+page+'#payout-history';
+ const columns=[l('Date','วันที่'),l('Recipient','ผู้รับ'),l('Amount','จำนวนเงิน'),l('Status','สถานะ')];
+ return <section className="finance-panel finance-register" id="payout-history">
+  <header className="finance-panel-head"><h2>{l('Payout history','ประวัติการจ่าย')}</h2>
+   {focused&&<Link href={href(1)} className="finance-button">{l('Show all payouts','แสดงการจ่ายทั้งหมด')}</Link>}</header>
+  {data.history.length?<div className="finance-table-scroll"><table>
+   <thead><tr>{columns.map(label=><th scope="col" key={label}>{label}</th>)}</tr></thead>
+   <tbody>{data.history.map(payment=><tr key={payment.id}>
+    <td data-label={columns[0]}><time dateTime={payment.day}>{date.format(new Date(payment.day+'T00:00:00Z'))}</time></td>
+    <td data-label={columns[1]}>{payoutName(payment.recipient,thai)}</td>
+    <td data-label={columns[2]} data-format="money">{thb(payment.amount,locale)}</td>
+    <td data-label={columns[3]}><span className="finance-state state-paid">{Number(payment.excess)>0?
+     l('Recorded above allocation','บันทึกยอดเกินส่วนแบ่ง'):l('Recorded','บันทึกแล้ว')}</span></td>
+   </tr>)}</tbody>
+  </table></div>:<p className="finance-empty">{l('No payouts recorded.','ยังไม่มีรายการจ่าย')}</p>}
+  {data.count>25&&<div className="finance-paging">
+   {page>1&&<Link href={href(page-1)}>{l('Previous','ก่อนหน้า')}</Link>}
+   <span>{(page-1)*25+1}–{Math.min(page*25,data.count)} / {data.count}</span>
+   {page*25<data.count&&<Link href={href(page+1)}>{l('Next','ถัดไป')}</Link>}
+  </div>}
+ </section>;
+}
+async function loadPayoutMonth(db:FinanceDB,month:string,page:number) {
+ const {data,error}=await db.rpc('finance_month_payout_page' as never,{p_month:month,p_offset:(page-1)*25} as never);
+ if(error)throw Error(error.message);
+ return data as unknown as PayoutMonth;
+}
+async function ProfitShares({db,data,dates,today,thai,l,ledgerPage,historyPage,allocationForms,close,ledgerQuery,ledgerSort,showLedger}:{
+ db:FinanceDB;data:PayoutMonth;dates:Filters;today:string;thai:boolean;l:L;
+ ledgerPage:number;historyPage:number;allocationForms:(row:Row)=>Form[];close?:Form;ledgerQuery:string;ledgerSort:string;showLedger:boolean;
+}) {
+ const month=dates.from.slice(0,7),locale=thai?'th':'en-GB';
+ const dateFormat=new Intl.DateTimeFormat(locale,{dateStyle:'medium',timeZone:'UTC'});
+ const historyHref=(page:number)=>'/finance?'+new URLSearchParams({section:'shares',month,page:String(page)})+'#payout-history';
+ const ledger=data.closed?await rows(db,'finance_payout_summary',{date:'month',dates:{...dates,to:dates.from},page:ledgerPage,
+  search:'name_snapshot',query:ledgerQuery,ascending:ledgerSort==='old'}):null;
+ const net=Number(data.net);
+ return <>
+  <section className="finance-panel finance-payout-period" id="finance-period">
+   <div><h2>{l('Net profit','กำไรสุทธิ')}</h2><strong>{thb(data.net,locale)}</strong>
+    <p className="finance-muted">{l('Before profit distributions','ก่อนจ่ายส่วนแบ่งกำไร')}</p></div>
+   <form method="get" action="/finance" className="finance-date-form">
+    <input type="hidden" name="section" value="shares"/>
+    <label>{l('Profit month','เดือนกำไร')}<input type="month" name="month" min="2000-01" max={today.slice(0,7)} defaultValue={month} required/></label>
+    <button className="finance-button">{l('View month','ดูเดือน')}</button>
+   </form>
+  </section>
+  {net<=0?<p className="finance-muted">{l('A month with zero profit or a loss does not accrue payable shares.','เดือนไม่มีกำไรหรือขาดทุนจะไม่เกิดส่วนแบ่งค้างจ่าย')}</p>:
+   data.frozen?<p className="finance-muted">{l('This period was frozen by a later close.','งวดนี้ถูกล็อกโดยการปิดเดือนถัดไป')}</p>:
+    !data.closed&&<p className="finance-muted">{l('These shares are estimates until the month is closed.','ยอดส่วนแบ่งเป็นประมาณการจนกว่าจะปิดเดือน')}</p>}
+  {net>0&&data.recipients.some(item=>Number(item.share)>0)&&data.recipients.reduce((total,item)=>total+BigInt(item.share),0n)!==BigInt(data.net)&&
+   <p className="finance-muted">{l('Shares use the profit basis in the agreement.','ยอดส่วนแบ่งใช้ฐานกำไรตามข้อตกลง')}</p>}
+  <PayoutCards data={data} thai={thai}/>
+  {data.canClose&&close&&<section className="finance-panel finance-entries"><Entry thai={thai} form={{...close,
+   fields:close.fields.map(field=>({...field,value:dates.from,min:dates.from,max:dates.from}))}}/></section>}
+  {!data.closed&&!data.frozen&&data.requiredCloseMonth&&<Link className="finance-button" href={'/finance?section=shares&month='+data.requiredCloseMonth}>
+   {l('Open the earliest month awaiting close','เปิดเดือนแรกที่รอปิดงวด')}</Link>}
+  <section className="finance-panel finance-register" id="payout-history">
+   <h2>{l('Payment history','ประวัติการจ่าย')}</h2>
+   {data.history.length>0?<ul className="finance-payout-history">{data.history.map(payment=><li key={payment.id}>
+    <div><strong>{payoutName(payment.recipient,thai)}</strong>
+     {payment.kind==='owner'&&<small>{l('Owner withdrawal','เงินถอนเจ้าของ')}</small>}
+     {payment.kind==='unlinked'&&<small>{l('Withdrawal without an assigned profit month','เงินถอนที่ยังไม่ผูกกับเดือนกำไร')}</small>}
+     <time dateTime={payment.day}>{dateFormat.format(new Date(payment.day+'T00:00:00Z'))}</time></div>
+    <strong>{thb(payment.amount,locale)}</strong>
+   </li>)}</ul>:<p className="finance-muted">{l('No payments recorded for this month.','ยังไม่มีการจ่ายสำหรับเดือนนี้')}</p>}
+   {data.historyCount>25&&<div className="finance-paging">
+    {historyPage>1&&<Link href={historyHref(historyPage-1)}>{l('Previous','ก่อนหน้า')}</Link>}
+    <span>{(historyPage-1)*25+1}–{Math.min(historyPage*25,data.historyCount)} / {data.historyCount}</span>
+    {historyPage*25<data.historyCount&&<Link href={historyHref(historyPage+1)}>{l('Next','ถัดไป')}</Link>}
+   </div>}
+  </section>
+  <details className="finance-panel finance-payout-advanced" open={showLedger||undefined}>
+   <summary>{l('Allocations and agreements','รายการจัดสรรและข้อตกลง')}</summary>
+   <Link className="finance-button" href={financeUrl('settings',dates,{panel:'business'})+'#agreements'}>{l('Share settings','ตั้งค่าส่วนแบ่ง')}</Link>
+   {ledger&&<TablePanel table={tables.allocations} data={ledger.data} count={ledger.count} section="shares" dates={dates}
+    l={l} thai={thai} query={ledgerQuery} sort={ledgerSort} page={ledgerPage} forms={allocationForms}/>}
+  </details>
+ </>;
 }

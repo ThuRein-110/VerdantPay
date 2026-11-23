@@ -1,7 +1,7 @@
 import {createHmac} from 'node:crypto';
 import {admin,applicant,applicantSession,customer,session} from '../finance-db-fixture';
 
-export const frontend='http://127.0.0.1:3311';
+export const frontend='http://localhost:3311';
 export const backend='http://127.0.0.1:3312';
 export const previewAnon='fixture-anon-key';
 export const previewService='fixture-service-key';
@@ -20,16 +20,18 @@ export function previewUser(actor:Actor) {
   factors:[{id:factor,factor_type:'totp',status:'verified'}]};
 }
 const encode=(value:unknown)=>Buffer.from(JSON.stringify(value)).toString('base64url');
-export function previewSession(actor:Actor) {
- const exp=Math.floor(Date.now()/1000)+7200;
+export function previewSession(actor:Actor,minutesAgo=0) {
+ const now=Math.floor(Date.now()/1000);
+ const exp=now+7200;
  const header=encode({alg:'HS256',typ:'JWT'});
- const payload=encode({sub:actors[actor].id,aal:actors[actor].aal,session_id:actors[actor].session,role:'authenticated',exp,iss:backend+'/auth/v1'});
+ const amr=[{method:actors[actor].aal==='aal2'?'totp':'password',timestamp:now-minutesAgo*60}];
+ const payload=encode({sub:actors[actor].id,aal:actors[actor].aal,amr,session_id:actors[actor].session,role:'authenticated',exp,iss:backend+'/auth/v1'});
  const signature=createHmac('sha256','loopback-finance-fixture').update(header+'.'+payload).digest('base64url');
  return {access_token:header+'.'+payload+'.'+signature,refresh_token:'fixture-'+actor,
   expires_at:exp,expires_in:7200,token_type:'bearer',user:previewUser(actor)};
 }
-export function cookie(actor:Actor) {
- return 'base64-'+encode(previewSession(actor));
+export function cookie(actor:Actor,minutesAgo=0) {
+ return 'base64-'+encode(previewSession(actor,minutesAgo));
 }
 export function previewActor(token:string):Actor|null {
  try {

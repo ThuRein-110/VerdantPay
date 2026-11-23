@@ -1,6 +1,16 @@
 import {expect,it} from 'vitest';
 import {authInput} from '../admin/app/finance/auth/input';
+import {recentFinanceAuthentication} from '../admin/app/finance/auth/passkey-policy';
 import {admin,applicant,customer,financeDatabase,financeSeed,identity} from './finance-db-fixture';
+
+it('allows passkey management only within five minutes of password or TOTP verification',()=>{
+ const now=1000;
+ expect(recentFinanceAuthentication([{method:'password',timestamp:700}],now)).toBe(true);
+ expect(recentFinanceAuthentication([{method:'totp',timestamp:999}],now)).toBe(true);
+ expect(recentFinanceAuthentication([{method:'password',timestamp:699},{method:'webauthn',timestamp:999}],now)).toBe(false);
+ expect(recentFinanceAuthentication([{method:'totp',timestamp:1001}],now)).toBe(false);
+ expect(recentFinanceAuthentication(undefined,now)).toBe(false);
+});
 
 it('validates signup data and enforces password confirmation and byte limits',()=>{
  const form={action:'signup',name:'  Finance Member ',email:'MEMBER@EXAMPLE.TEST',password:'Long-secure-password-7',
@@ -12,6 +22,23 @@ it('validates signup data and enforces password confirmation and byte limits',()
  const overlong='ก'.repeat(26)+'7';
  expect(authInput.safeParse({...form,password:overlong,confirmation:overlong}).success).toBe(false);
 });
+
+it('installs only finance prerequisites and protects every base table on a blank Supabase schema',async()=>{
+ const db=await financeDatabase();
+ try{
+  const {rows}=await db.query<{name:string;rls:boolean;guest:boolean}>(
+   "select c.relname name,c.relrowsecurity rls,has_table_privilege('anon',c.oid,'SELECT, INSERT, UPDATE, DELETE') guest from pg_class c join pg_namespace s on s.oid=c.relnamespace where s.nspname='public' and c.relkind='r'");
+  expect(rows.length).toBeGreaterThan(20);
+  expect(rows.every(table=>table.rls&&!table.guest)).toBe(true);
+  expect(rows.filter(table=>!table.name.startsWith('finance_')).map(table=>table.name).sort()).toEqual(['profiles','rate_limits','roles']);
+  await db.exec('set role anon');
+  await expect(db.query("select public.finance_record_income(gen_random_uuid(),'{}'::jsonb)")).rejects.toThrow('permission denied');
+  await expect(db.query("select public.take_rate_limit('any',1,60)")).rejects.toThrow('permission denied');
+  await db.exec('reset role;set role service_role');
+  expect((await db.query<{allowed:boolean}>("select public.take_rate_limit('finance:test',1,60) allowed")).rows[0].allowed).toBe(true);
+  expect((await db.query<{allowed:boolean}>("select public.take_rate_limit('finance:test',1,60) allowed")).rows[0].allowed).toBe(false);
+ } finally {await db.close();}
+},20000);
 
 it('enforces owner-only approval, MFA, linked allocations, and immediate revocation in PostgreSQL',async()=>{
  const db=await financeDatabase();
