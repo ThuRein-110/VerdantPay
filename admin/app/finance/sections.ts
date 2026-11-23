@@ -62,6 +62,5 @@ export const moduleCopy: Partial<Record<Section,Pair>> = {
  investments:['Track business funding, withdrawals and equipment book value.','ติดตามเงินทุน การถอนเงิน และมูลค่าตามบัญชีของอุปกรณ์'],
  cash:['Review account balances and record transfers between them.','ดูยอดบัญชีและบันทึกการโอนระหว่างบัญชี'],
  reports:['Download records for the selected period or print a summary.','ดาวน์โหลดข้อมูลตามช่วงเวลาหรือพิมพ์รายงานสรุป'],
- settings:['Manage accounts, default prices, team members and profit-sharing agreements.','จัดการบัญชี ราคาเริ่มต้น สมาชิกทีม และข้อตกลงส่วนแบ่งกำไร'],
 };
 export function localized(l:L, pair:Pair) {return l(...pair);}

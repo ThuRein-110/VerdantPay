@@ -50,7 +50,7 @@ function MembershipForm({item,teams,thai}:{item:MembershipList['memberships'][nu
 
 export function MembershipPanel({data,thai,page}:{data:MembershipList;thai:boolean;page:number}) {
  const l=(en:string,th:string)=>thai?th:en;
- const base='/finance?section=settings&membersPage=';
+ const base='/finance?section=settings&panel=access&membersPage=';
  return <section className="finance-panel" id="memberships" aria-labelledby="membership-heading">
   <h2 id="membership-heading">{l('Account approvals','อนุมัติบัญชี')}</h2>
   <p className="finance-muted">{l('Finance admins can manage the ledger. Each team account sees only the profit-share member you link to it.','ผู้ดูแลการเงินจัดการบัญชีได้ สมาชิกทีมเห็นเฉพาะส่วนแบ่งของสมาชิกที่ผูกไว้')}</p>

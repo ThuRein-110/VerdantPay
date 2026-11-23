@@ -240,6 +240,7 @@ test('signup confirmation, pending approval, scoped member login and password re
  await signedIn(owner);
  const settings=await owner.newPage();
  await settings.goto(frontend+'/finance?section=settings&lang=en');
+ await settings.getByRole('link',{name:'Team access',exact:true}).click();
  const application=settings.locator('form.finance-access-item').filter({hasText:address});
  await expect(application).toBeVisible();
  await application.locator('select[name=role]').selectOption('team');
@@ -400,6 +401,14 @@ test('mobile layouts, system and saved themes, navigation, chart, keyboard dialo
  await expect(page.getByRole('img',{name:'Monthly net profit',exact:true})).toBeVisible();
  await nav.getByRole('link',{name:'Settings',exact:true}).click();
  await expect(nav.getByRole('link',{name:'Settings',exact:true})).toHaveAttribute('aria-current','page');
+ const settingsNav=page.getByRole('navigation',{name:'Settings sections',exact:true});
+ await expect(settingsNav.getByRole('link',{name:'Account',exact:true})).toHaveAttribute('aria-current','page');
+ await expect(page.getByRole('heading',{name:'Appearance',exact:true})).toBeVisible();
+ await expect(page.getByRole('heading',{name:'Financial accounts',exact:true})).toHaveCount(0);
+ await settingsNav.getByRole('link',{name:'Business',exact:true}).click();
+ await expect(page.getByRole('heading',{name:'Financial accounts',exact:true})).toBeVisible();
+ await expect(page.getByText('Add account',{exact:true})).toBeVisible();
+ await expect(page.getByRole('heading',{name:'Audit history',exact:true})).toBeVisible();
  await page.getByRole('link',{name:'Team Payouts',exact:true}).click();
  await page.getByRole('link',{name:'Profit-sharing report',exact:true}).click();
  await expect(page.getByRole('heading',{name:'Net profit',exact:true})).toBeVisible();
@@ -409,12 +418,16 @@ test('mobile layouts, system and saved themes, navigation, chart, keyboard dialo
  await expect(page.getByRole('heading',{name:'Payment history'})).toBeVisible();
  await overflow(page);
  await nav.getByRole('link',{name:'Settings',exact:true}).click();
- await page.getByRole('combobox',{name:'Theme',exact:true}).selectOption('system');
+ await page.getByRole('radio',{name:'System',exact:true}).check();
  await page.emulateMedia({colorScheme:'dark'});
  await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
  await page.emulateMedia({colorScheme:'light'});
  await expect(page.locator('html')).toHaveAttribute('data-theme','light');
  await page.screenshot({path:resolve(screenshots,'settings-light.png')});
+ await page.getByRole('combobox',{name:'Language',exact:true}).selectOption('th');
+ await expect(page.getByRole('heading',{name:'การแสดงผล',exact:true})).toBeVisible();
+ await expect(page.getByRole('navigation',{name:'เมนูการตั้งค่า'})).toBeVisible();
+ await overflow(page);
  for(const section of ['orders','income','expenses','investments','cash','inventory','calculator','reports','settings']){
   await page.goto('/finance?section='+section+'&lang=en');
   await expect(page.locator('.finance-topbar')).toBeVisible();
@@ -488,6 +501,7 @@ test('email preferences verify a recipient and queue a test without contacting a
  await signedIn(context);
  await page.setViewportSize({width:390,height:844});
  await page.goto('/finance?section=settings&lang=en');
+ await page.getByRole('link',{name:'Notifications',exact:true}).click();
  const panel=page.getByRole('region',{name:'Email Notifications'});
  const testButton=panel.getByRole('button',{name:'Send Test Email'});
  await expect(testButton).toBeDisabled();

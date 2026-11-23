@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import {createContext,Fragment,useContext,useEffect,useRef,useState,useSyncExternalStore,type ReactNode} from 'react';
-import {ArrowDownLeft,ArrowUpRight,Boxes,Calculator,ChartNoAxesCombined,CheckCircle2,ChevronDown,CircleUserRound,Coins,FileChartColumn,House,Landmark,LayoutList,Moon,Plus,Settings,Sun,Target,UsersRound,Wallet,X} from 'lucide-react';
+import {ArrowDownLeft,ArrowUpRight,Boxes,Calculator,ChartNoAxesCombined,CheckCircle2,ChevronDown,CircleUserRound,Coins,FileChartColumn,House,Landmark,LayoutList,Monitor,Moon,Plus,Settings,Sun,Target,UsersRound,Wallet,X} from 'lucide-react';
 import {useLanguage} from '@mfu/ui/settings.tsx';
 import {loadQuickEntry} from './actions';
 import {sections,type Filters,type Section} from './model';
@@ -37,14 +37,17 @@ export function ThemeButton({thai}:{thai:boolean}) {
 
 export function FinancePreferences({thai}:{thai:boolean}) {
  const {theme,setTheme}=useLanguage();
- return <section className="finance-panel finance-preferences">
-  <h2>{thai?'การแสดงผล':'Appearance'}</h2>
-  <div className="finance-fields">
-   <label>{thai?'ธีม':'Theme'}<select value={theme} onChange={event=>setTheme(event.target.value as typeof theme)}>
-    <option value="system">{thai?'ตามระบบ':'System'}</option><option value="light">{thai?'สว่าง':'Light'}</option><option value="dark">{thai?'มืด':'Dark'}</option>
-   </select></label>
-   <FinanceLanguage thai={thai}/>
-  </div>
+ const options=[['system','System','ตามระบบ',Monitor],['light','Light','สว่าง',Sun],['dark','Dark','มืด',Moon]] as const;
+ return <section className="finance-panel finance-preferences" aria-labelledby="finance-appearance">
+  <h2 id="finance-appearance">{thai?'การแสดงผล':'Appearance'}</h2>
+  <fieldset className="finance-theme-picker">
+   <legend>{thai?'ธีม':'Theme'}</legend>
+   <div>{options.map(([value,en,th,Icon])=><label key={value}>
+    <input type="radio" name="finance-theme" value={value} checked={theme===value} onChange={()=>setTheme(value)}/>
+    <span><Icon size={18} aria-hidden/>{thai?th:en}</span>
+   </label>)}</div>
+  </fieldset>
+  <div className="finance-preference-language"><FinanceLanguage thai={thai}/></div>
  </section>;
 }
 
